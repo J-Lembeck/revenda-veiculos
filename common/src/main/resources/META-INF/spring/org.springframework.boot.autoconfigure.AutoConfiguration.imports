@@ -1,0 +1,2 @@
+com.revenda.common.time.ClockAutoConfiguration
+com.revenda.common.error.web.WebErrorAutoConfiguration
