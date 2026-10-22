@@ -19,7 +19,9 @@ isolado num único serviço.
 | `sales-service` | 8083 | compra e orquestração da saga, webhook de pagamento, prazos, retirada |
 | `payment-gateway-mock` | 8084 | gateway de pagamento simulado: cobrança, Pix sintético, estorno, webhook |
 
-Cada serviço tem o próprio banco. O pacote base é `com.revenda`.
+Cada serviço sobe sozinho, tem o próprio banco e fala com os outros só por HTTP, fila ou webhook — nenhum
+lê o banco de outro. No CI, cada um é compilado e testado num job próprio. O pacote base é
+`com.revenda`.
 
 ## Stack
 
@@ -108,7 +110,9 @@ revenda-veiculos/
 │   ├── postgres/init.sh     bancos e roles
 │   ├── localstack/init.sh   fila, chaves, bucket e segredos
 │   └── keycloak/realm.json  realm, clientes, papéis e usuários sintéticos
-└── .github/workflows/ci.yml
+└── .github/
+    ├── workflows/ci.yml     um job por serviço
+    └── scripts/affected-modules.sh
 ```
 
 ## Versões fixas das imagens
@@ -119,5 +123,14 @@ que clona o repositório roda tudo sem criar conta em serviço externo. Na nuvem
 
 ## CI
 
-GitHub Actions em todo *pull request* e em todo *push* na `main`: JDK 21 (Temurin) com cache do Maven,
-`./mvnw -B verify` e os relatórios de teste guardados como artefato.
+GitHub Actions com **um job por serviço**: cada job compila e testa só o seu serviço e o `common`
+(`./mvnw -B verify -pl <serviço> -am`), num runner próprio, com JDK 21 (Temurin) e cache do Maven. A
+falha de um serviço não interrompe os outros.
+
+- Em *pull request*, só rodam os serviços cuja pasta mudou. Mudança no `common`, no `pom.xml` raiz, no
+  wrapper ou em `.github/` roda todos; mudança só em `infra/` ou na documentação não roda nenhum. A
+  escolha fica em [`.github/scripts/affected-modules.sh`](.github/scripts/affected-modules.sh).
+- Em *push* na `main`, rodam todos.
+- O job `resultado` resume os demais e é o *check* a exigir na proteção da `main` — serviço que não
+  precisou rodar conta como aprovado.
+- Os relatórios de teste de cada serviço ficam como artefato por 14 dias.
