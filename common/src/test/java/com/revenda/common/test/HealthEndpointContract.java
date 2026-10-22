@@ -2,6 +2,8 @@ package com.revenda.common.test;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.revenda.common.error.web.ApiError;
+import com.revenda.common.observability.RequestIdFilter;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -32,6 +34,18 @@ public abstract class HealthEndpointContract {
         ResponseEntity<String> response = rest.getForEntity("/actuator/health", String.class);
 
         assertThat(response.getBody()).doesNotContain("components", "details");
+    }
+
+    @Test
+    void unknownRouteAnswersTheCommonErrorFormat() {
+        ResponseEntity<ApiError> response = rest.getForEntity("/rota-que-nao-existe", ApiError.class);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().code()).isEqualTo("NOT_FOUND");
+        assertThat(response.getBody().requestId())
+                .isNotBlank()
+                .isEqualTo(response.getHeaders().getFirst(RequestIdFilter.HEADER));
     }
 
     @ParameterizedTest
