@@ -1,0 +1,399 @@
+{
+  "realm": "revenda",
+  "displayName": "Revenda de veículos (desenvolvimento local)",
+  "enabled": true,
+  "sslRequired": "external",
+  "registrationAllowed": true,
+  "registrationEmailAsUsername": true,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "verifyEmail": false,
+  "resetPasswordAllowed": false,
+  "editUsernameAllowed": false,
+  "internationalizationEnabled": true,
+  "supportedLocales": ["pt-BR"],
+  "defaultLocale": "pt-BR",
+  "passwordPolicy": "length(12) and upperCase(1) and lowerCase(1) and digits(1) and notUsername(undefined)",
+  "bruteForceProtected": true,
+  "permanentLockout": false,
+  "failureFactor": 5,
+  "waitIncrementSeconds": 60,
+  "maxFailureWaitSeconds": 900,
+  "maxDeltaTimeSeconds": 43200,
+  "accessTokenLifespan": 900,
+  "ssoSessionIdleTimeout": 1800,
+  "ssoSessionMaxLifespan": 36000,
+  "revokeRefreshToken": true,
+  "refreshTokenMaxReuse": 0,
+  "roles": {
+    "realm": [
+      { "name": "CUSTOMER", "description": "Pessoa compradora" },
+      { "name": "SELLER", "description": "Vendedor(a) da revenda" },
+      { "name": "ADMIN", "description": "Gestão da revenda" },
+      {
+        "name": "default-roles-revenda",
+        "description": "Papéis de quem se cadastra pelo autocadastro",
+        "composite": true,
+        "composites": { "realm": ["CUSTOMER"] }
+      }
+    ]
+  },
+  "defaultRole": { "name": "default-roles-revenda", "composite": true, "clientRole": false },
+  "defaultDefaultClientScopes": ["basic", "roles", "profile", "email", "web-origins", "acr"],
+  "defaultOptionalClientScopes": [],
+  "clientScopes": [
+    {
+      "name": "basic",
+      "description": "Claims básicas: sub e auth_time",
+      "protocol": "openid-connect",
+      "attributes": { "include.in.token.scope": "false", "display.on.consent.screen": "false" },
+      "protocolMappers": [
+        {
+          "name": "sub",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-sub-mapper",
+          "consentRequired": false,
+          "config": { "access.token.claim": "true", "introspection.token.claim": "true" }
+        },
+        {
+          "name": "auth_time",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usersessionmodel-note-mapper",
+          "consentRequired": false,
+          "config": {
+            "user.session.note": "AUTH_TIME",
+            "claim.name": "auth_time",
+            "jsonType.label": "long",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "introspection.token.claim": "true"
+          }
+        }
+      ]
+    },
+    {
+      "name": "roles",
+      "description": "Papéis do realm em realm_access.roles",
+      "protocol": "openid-connect",
+      "attributes": { "include.in.token.scope": "false", "display.on.consent.screen": "false" },
+      "protocolMappers": [
+        {
+          "name": "realm roles",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-realm-role-mapper",
+          "consentRequired": false,
+          "config": {
+            "claim.name": "realm_access.roles",
+            "jsonType.label": "String",
+            "multivalued": "true",
+            "access.token.claim": "true",
+            "introspection.token.claim": "true"
+          }
+        },
+        {
+          "name": "audience resolve",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-resolve-mapper",
+          "consentRequired": false,
+          "config": { "access.token.claim": "true", "introspection.token.claim": "true" }
+        }
+      ]
+    },
+    {
+      "name": "profile",
+      "description": "Nome da pessoa, só no ID token e no userinfo",
+      "protocol": "openid-connect",
+      "attributes": { "include.in.token.scope": "true", "display.on.consent.screen": "false" },
+      "protocolMappers": [
+        {
+          "name": "username",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "consentRequired": false,
+          "config": {
+            "user.attribute": "username",
+            "claim.name": "preferred_username",
+            "jsonType.label": "String",
+            "id.token.claim": "true",
+            "access.token.claim": "false",
+            "userinfo.token.claim": "true",
+            "introspection.token.claim": "false"
+          }
+        },
+        {
+          "name": "full name",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-full-name-mapper",
+          "consentRequired": false,
+          "config": {
+            "id.token.claim": "true",
+            "access.token.claim": "false",
+            "userinfo.token.claim": "true",
+            "introspection.token.claim": "false"
+          }
+        },
+        {
+          "name": "given name",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "consentRequired": false,
+          "config": {
+            "user.attribute": "firstName",
+            "claim.name": "given_name",
+            "jsonType.label": "String",
+            "id.token.claim": "true",
+            "access.token.claim": "false",
+            "userinfo.token.claim": "true",
+            "introspection.token.claim": "false"
+          }
+        },
+        {
+          "name": "family name",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "consentRequired": false,
+          "config": {
+            "user.attribute": "lastName",
+            "claim.name": "family_name",
+            "jsonType.label": "String",
+            "id.token.claim": "true",
+            "access.token.claim": "false",
+            "userinfo.token.claim": "true",
+            "introspection.token.claim": "false"
+          }
+        }
+      ]
+    },
+    {
+      "name": "email",
+      "description": "E-mail da conta, usado no cadastro do comprador",
+      "protocol": "openid-connect",
+      "attributes": { "include.in.token.scope": "true", "display.on.consent.screen": "false" },
+      "protocolMappers": [
+        {
+          "name": "email",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "consentRequired": false,
+          "config": {
+            "user.attribute": "email",
+            "claim.name": "email",
+            "jsonType.label": "String",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true",
+            "introspection.token.claim": "true"
+          }
+        },
+        {
+          "name": "email verified",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-property-mapper",
+          "consentRequired": false,
+          "config": {
+            "user.attribute": "emailVerified",
+            "claim.name": "email_verified",
+            "jsonType.label": "boolean",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true",
+            "introspection.token.claim": "true"
+          }
+        }
+      ]
+    },
+    {
+      "name": "web-origins",
+      "description": "Origens permitidas (CORS)",
+      "protocol": "openid-connect",
+      "attributes": { "include.in.token.scope": "false", "display.on.consent.screen": "false" },
+      "protocolMappers": [
+        {
+          "name": "allowed web origins",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-allowed-origins-mapper",
+          "consentRequired": false,
+          "config": { "access.token.claim": "true", "introspection.token.claim": "true" }
+        }
+      ]
+    },
+    {
+      "name": "acr",
+      "description": "Nível de autenticação (acr)",
+      "protocol": "openid-connect",
+      "attributes": { "include.in.token.scope": "false", "display.on.consent.screen": "false" },
+      "protocolMappers": [
+        {
+          "name": "acr loa level",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-acr-mapper",
+          "consentRequired": false,
+          "config": { "id.token.claim": "true", "access.token.claim": "true", "introspection.token.claim": "true" }
+        }
+      ]
+    },
+    {
+      "name": "service_account",
+      "description": "Identifica o serviço no token de client credentials",
+      "protocol": "openid-connect",
+      "attributes": { "include.in.token.scope": "false", "display.on.consent.screen": "false" },
+      "protocolMappers": [
+        {
+          "name": "client id",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usersessionmodel-note-mapper",
+          "consentRequired": false,
+          "config": {
+            "user.session.note": "client_id",
+            "claim.name": "client_id",
+            "jsonType.label": "String",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "introspection.token.claim": "true"
+          }
+        }
+      ]
+    },
+    {
+      "name": "vehicles.reserve",
+      "description": "Reservar veículo para uma compra (rota interna do vehicles-service)",
+      "protocol": "openid-connect",
+      "attributes": { "include.in.token.scope": "true", "display.on.consent.screen": "false" }
+    },
+    {
+      "name": "customers.read-payer",
+      "description": "Ler elegibilidade, dados de cobrança e de documento e conferir CPF (rotas internas do customers-service)",
+      "protocol": "openid-connect",
+      "attributes": { "include.in.token.scope": "true", "display.on.consent.screen": "false" }
+    },
+    {
+      "name": "sales.read-retention",
+      "description": "Consultar o prazo de retenção dos dados de um cliente (rota interna do sales-service)",
+      "protocol": "openid-connect",
+      "attributes": { "include.in.token.scope": "true", "display.on.consent.screen": "false" }
+    }
+  ],
+  "clients": [
+    {
+      "clientId": "revenda-web",
+      "name": "Front-end e Swagger UI",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "redirectUris": [
+        "http://localhost:8081/*",
+        "http://localhost:8082/*",
+        "http://localhost:8083/*"
+      ],
+      "webOrigins": ["+"],
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "+"
+      },
+      "defaultClientScopes": ["basic", "roles", "profile", "email", "web-origins", "acr"],
+      "optionalClientScopes": []
+    },
+    {
+      "clientId": "sales-service",
+      "name": "sales-service (chamadas entre serviços)",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "${SALES_SERVICE_CLIENT_SECRET}",
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "fullScopeAllowed": false,
+      "defaultClientScopes": ["basic", "service_account", "vehicles.reserve", "customers.read-payer"],
+      "optionalClientScopes": []
+    },
+    {
+      "clientId": "customers-service",
+      "name": "customers-service (chamadas entre serviços)",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "${CUSTOMERS_SERVICE_CLIENT_SECRET}",
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "fullScopeAllowed": false,
+      "defaultClientScopes": ["basic", "service_account", "sales.read-retention"],
+      "optionalClientScopes": []
+    }
+  ],
+  "users": [
+    {
+      "username": "ana.cliente@example.test",
+      "email": "ana.cliente@example.test",
+      "emailVerified": true,
+      "firstName": "Ana",
+      "lastName": "Ribeiro",
+      "enabled": true,
+      "credentials": [{ "type": "password", "value": "dev-only-Ana-2026", "temporary": false }],
+      "realmRoles": ["default-roles-revenda"]
+    },
+    {
+      "username": "bruno.sem-cadastro@example.test",
+      "email": "bruno.sem-cadastro@example.test",
+      "emailVerified": true,
+      "firstName": "Bruno",
+      "lastName": "Teixeira",
+      "enabled": true,
+      "credentials": [{ "type": "password", "value": "dev-only-Bruno-2026", "temporary": false }],
+      "realmRoles": ["default-roles-revenda"]
+    },
+    {
+      "username": "caio.menor@example.test",
+      "email": "caio.menor@example.test",
+      "emailVerified": true,
+      "firstName": "Caio",
+      "lastName": "Moreira",
+      "enabled": true,
+      "credentials": [{ "type": "password", "value": "dev-only-Caio-2026", "temporary": false }],
+      "realmRoles": ["default-roles-revenda"]
+    },
+    {
+      "username": "vera.vendedora@example.test",
+      "email": "vera.vendedora@example.test",
+      "emailVerified": true,
+      "firstName": "Vera",
+      "lastName": "Lima",
+      "enabled": true,
+      "credentials": [{ "type": "password", "value": "dev-only-Vera-2026", "temporary": false }],
+      "realmRoles": ["SELLER"],
+      "requiredActions": ["CONFIGURE_TOTP"]
+    },
+    {
+      "username": "otto.admin@example.test",
+      "email": "otto.admin@example.test",
+      "emailVerified": true,
+      "firstName": "Otto",
+      "lastName": "Barros",
+      "enabled": true,
+      "credentials": [{ "type": "password", "value": "dev-only-Otto-2026", "temporary": false }],
+      "realmRoles": ["ADMIN"],
+      "requiredActions": ["CONFIGURE_TOTP"]
+    },
+    {
+      "username": "service-account-sales-service",
+      "enabled": true,
+      "serviceAccountClientId": "sales-service",
+      "realmRoles": []
+    },
+    {
+      "username": "service-account-customers-service",
+      "enabled": true,
+      "serviceAccountClientId": "customers-service",
+      "realmRoles": []
+    }
+  ]
+}
