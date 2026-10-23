@@ -1,6 +1,6 @@
 package com.revenda.vehicles;
 
-import com.revenda.common.test.ServiceFoundationContract;
+import com.revenda.common.test.ResourceServerContract;
 
-class VehiclesFoundationTests extends ServiceFoundationContract {
+class VehiclesFoundationTests extends ResourceServerContract {
 }

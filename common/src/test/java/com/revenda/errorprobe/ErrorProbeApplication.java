@@ -3,12 +3,15 @@ package com.revenda.errorprobe;
 import com.revenda.common.error.BusinessException;
 import com.revenda.common.error.ErrorCode;
 import com.revenda.common.error.ErrorKind;
+import com.revenda.common.security.Route;
+import com.revenda.common.security.SecurityRoutes;
 import jakarta.servlet.Filter;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Positive;
+import java.util.List;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
@@ -73,6 +76,11 @@ class ErrorProbeApplication {
         void failure() {
             throw new IllegalStateException(LEAKED_DETAIL);
         }
+    }
+
+    @Bean
+    SecurityRoutes probeRoutes() {
+        return () -> List.of(Route.open("/probe/**"));
     }
 
     @Bean

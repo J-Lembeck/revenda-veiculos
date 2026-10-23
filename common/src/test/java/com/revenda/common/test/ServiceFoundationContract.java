@@ -19,6 +19,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.resttestclient.TestRestTemplate;
 import org.springframework.boot.resttestclient.autoconfigure.AutoConfigureTestRestTemplate;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 
@@ -44,9 +47,15 @@ public abstract class ServiceFoundationContract {
         assertThat(response.getBody()).doesNotContain("components", "details");
     }
 
+    /** Cabeçalhos de quem pode chamar qualquer rota autenticada do serviço; vazio onde não há token. */
+    protected HttpHeaders credentials() {
+        return new HttpHeaders();
+    }
+
     @Test
     void unknownRouteAnswersTheCommonErrorFormat() {
-        ResponseEntity<ApiError> response = rest.getForEntity("/rota-que-nao-existe", ApiError.class);
+        ResponseEntity<ApiError> response = rest.exchange("/rota-que-nao-existe", HttpMethod.GET,
+                new HttpEntity<>(credentials()), ApiError.class);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
         assertThat(response.getBody()).isNotNull();
@@ -68,7 +77,8 @@ public abstract class ServiceFoundationContract {
     @ParameterizedTest
     @ValueSource(strings = {"/actuator/env", "/actuator/beans", "/actuator/configprops", "/actuator/heapdump"})
     void otherActuatorEndpointsAreNotExposed(String path) {
-        ResponseEntity<String> response = rest.getForEntity(path, String.class);
+        ResponseEntity<String> response = rest.exchange(path, HttpMethod.GET, new HttpEntity<>(credentials()),
+                String.class);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
     }

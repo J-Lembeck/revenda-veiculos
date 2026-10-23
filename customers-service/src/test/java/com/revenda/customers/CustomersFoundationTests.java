@@ -1,6 +1,6 @@
 package com.revenda.customers;
 
-import com.revenda.common.test.ServiceFoundationContract;
+import com.revenda.common.test.ResourceServerContract;
 
-class CustomersFoundationTests extends ServiceFoundationContract {
+class CustomersFoundationTests extends ResourceServerContract {
 }

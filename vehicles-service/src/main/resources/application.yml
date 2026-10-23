@@ -10,3 +10,12 @@ management:
     web:
       exposure:
         include: health
+
+revenda:
+  security:
+    oidc:
+      issuer-uri: ${OIDC_ISSUER_URI:http://localhost:8180/realms/revenda}
+      roles-claim: ${OIDC_ROLES_CLAIM:realm_access.roles}
+      scope-prefix: ${OIDC_SCOPE_PREFIX:}
+      web-clients: ${OIDC_WEB_CLIENTS:revenda-web}
+      service-clients: ${OIDC_SERVICE_CLIENTS:sales-service}
