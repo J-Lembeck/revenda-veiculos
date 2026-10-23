@@ -1,0 +1,7 @@
+revenda:
+  security:
+    oidc:
+      issuer-uri: https://idp.example.test/realms/revenda
+      roles-claim: realm_access.roles
+      web-clients: revenda-web
+      service-clients: sales-service
