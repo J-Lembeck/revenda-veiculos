@@ -3,13 +3,11 @@ package com.revenda.common.security;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.revenda.common.error.web.ApiErrorWriter;
+import com.revenda.common.test.MovableClock;
 import jakarta.servlet.ServletException;
 import java.io.IOException;
-import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
-import java.time.ZoneId;
-import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
@@ -132,33 +130,5 @@ class RateLimitFilterTests {
         MockHttpServletRequest request = new MockHttpServletRequest(method, path);
         request.setRemoteAddr(address);
         return request;
-    }
-
-    private static final class MovableClock extends Clock {
-
-        private Instant now;
-
-        private MovableClock(Instant now) {
-            this.now = now;
-        }
-
-        private void advance(Duration duration) {
-            now = now.plus(duration);
-        }
-
-        @Override
-        public Instant instant() {
-            return now;
-        }
-
-        @Override
-        public ZoneId getZone() {
-            return ZoneOffset.UTC;
-        }
-
-        @Override
-        public Clock withZone(ZoneId zone) {
-            return this;
-        }
     }
 }
