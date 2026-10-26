@@ -63,6 +63,9 @@ locais): `docker compose down -v`.
 ./mvnw -B verify
 ```
 
+Os testes que usam banco sobem um PostgreSQL próprio pelo Testcontainers: o Docker precisa estar aberto,
+mas o Compose não precisa estar de pé.
+
 ### 3. Rodar um serviço
 
 ```bash

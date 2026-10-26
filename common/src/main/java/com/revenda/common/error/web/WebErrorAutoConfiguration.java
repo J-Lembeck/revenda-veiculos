@@ -15,6 +15,7 @@ import org.springframework.core.Ordered;
 import org.springframework.web.servlet.DispatcherServlet;
 import org.springframework.web.servlet.LocaleResolver;
 import org.springframework.web.servlet.i18n.FixedLocaleResolver;
+import tools.jackson.databind.ObjectMapper;
 
 @AutoConfiguration(before = {WebMvcAutoConfiguration.class, ErrorMvcAutoConfiguration.class})
 @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
@@ -31,6 +32,12 @@ public class WebErrorAutoConfiguration {
     @ConditionalOnMissingBean(ErrorAttributes.class)
     ApiErrorAttributes errorAttributes() {
         return new ApiErrorAttributes();
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    ApiErrorWriter apiErrorWriter(ObjectMapper objectMapper) {
+        return new ApiErrorWriter(objectMapper);
     }
 
     @Bean(name = DispatcherServlet.LOCALE_RESOLVER_BEAN_NAME)
