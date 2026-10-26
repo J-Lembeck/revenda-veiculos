@@ -3,3 +3,4 @@ com.revenda.common.error.web.WebErrorAutoConfiguration
 com.revenda.common.security.ResourceServerAutoConfiguration
 com.revenda.common.idempotency.IdempotencyAutoConfiguration
 com.revenda.common.audit.AuditAutoConfiguration
+com.revenda.common.outbox.OutboxAutoConfiguration
