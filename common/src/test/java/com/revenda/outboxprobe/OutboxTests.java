@@ -244,6 +244,23 @@ class OutboxTests {
     }
 
     @Test
+    void expiredLeaseOnTheLastAttemptFailsAndIsCountedInTheRun() {
+        UUID id = publish(release(UUID.randomUUID()));
+        database.sql("""
+                        UPDATE outbox_message SET status = 'PROCESSING', attempts = 2, locked_until = :past
+                         WHERE id = :id
+                        """)
+                .param("past", SqlTime.utc(clock.instant().minusSeconds(1)))
+                .param("id", id).update();
+
+        assertThat(dispatcher.dispatchDue()).isEqualTo(new DispatchRun(0, 0, 1));
+
+        assertThat(vehicleCommands.sent()).isEmpty();
+        assertThat(row(id)).containsEntry("status", "FAILED").containsEntry("attempts", 3)
+                .containsEntry("last_error", "LEASE_EXPIRED");
+    }
+
+    @Test
     void messageInSendByAnotherDispatcherIsNotTakenWhileItsLeaseLasts() {
         UUID id = publish(release(UUID.randomUUID()));
         database.sql("UPDATE outbox_message SET status = 'PROCESSING', locked_until = :future WHERE id = :id")

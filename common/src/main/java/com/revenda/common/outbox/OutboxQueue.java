@@ -20,7 +20,7 @@ class OutboxQueue {
 
     private final JdbcClient jdbcClient;
 
-    int releaseExpired(Instant now, int maxAttempts) {
+    List<Expired> releaseExpired(Instant now, int maxAttempts) {
         return jdbcClient.sql("""
                         UPDATE outbox_message
                            SET status = CASE WHEN attempts + 1 >= :maxAttempts THEN 'FAILED' ELSE 'PENDING' END,
@@ -30,11 +30,18 @@ class OutboxQueue {
                                         FROM outbox_message
                                        WHERE status = 'PROCESSING' AND locked_until < :now
                                          FOR UPDATE SKIP LOCKED)
+                        RETURNING id, destination, type, attempts, status = 'FAILED' AS failed
                         """)
                 .param("maxAttempts", maxAttempts)
                 .param("now", SqlTime.utc(now))
                 .param("error", LEASE_EXPIRED)
-                .update();
+                .query((row, index) -> new Expired(
+                        row.getObject("id", UUID.class),
+                        row.getString("destination"),
+                        row.getString("type"),
+                        row.getInt("attempts"),
+                        row.getBoolean("failed")))
+                .list();
     }
 
     List<Claimed> claim(Instant now, Instant lease, int limit) {
@@ -118,5 +125,8 @@ class OutboxQueue {
     }
 
     record Claimed(OutboxMessage message, long seq, Instant lease) {
+    }
+
+    record Expired(UUID id, String destination, String type, int attempts, boolean failed) {
     }
 }

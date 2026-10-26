@@ -2,6 +2,7 @@ package com.revenda.common.outbox;
 
 import com.revenda.common.error.BusinessException;
 import com.revenda.common.outbox.OutboxQueue.Claimed;
+import com.revenda.common.outbox.OutboxQueue.Expired;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -63,8 +64,7 @@ public class OutboxDispatcher {
             throw new IllegalTransactionStateException(
                     "O outbox é despachado sem transação aberta: o envio não segura transação nem lock");
         }
-        transaction.executeWithoutResult(status -> queue.releaseExpired(now(), maxAttempts));
-        DispatchRun total = DispatchRun.empty();
+        DispatchRun total = releaseExpired();
         for (int batch = 0; batch < MAX_BATCHES_PER_RUN; batch++) {
             Instant now = now();
             List<Claimed> claimed = transaction.execute(status -> queue.claim(now, now.plus(LEASE), BATCH_SIZE));
@@ -76,6 +76,19 @@ public class OutboxDispatcher {
             }
         }
         return total;
+    }
+
+    private DispatchRun releaseExpired() {
+        List<Expired> expired = transaction.execute(status -> queue.releaseExpired(now(), maxAttempts));
+        DispatchRun run = DispatchRun.empty();
+        for (Expired message : expired) {
+            if (message.failed()) {
+                log.error("Mensagem {} ({} para {}) teve o prazo de envio vencido na tentativa {} e ficou FAILED",
+                        message.id(), message.type(), message.destination(), message.attempts());
+                run = run.plus(Outcome.FAILED);
+            }
+        }
+        return run;
     }
 
     private Outcome send(Claimed claimed) {
