@@ -79,6 +79,33 @@ A base de teste fica no test-jar do `common` (`com.revenda.common.test`):
 | `SyntheticData` | CPF sorteado com dígito verificador válido e e-mail em `@example.test` — só dado inventado |
 | `MovableClock` | relógio que o teste adianta |
 | `ServiceFoundationContract`, `ResourceServerContract` | testes que todo serviço herda: `health`, formato de erro, log mascarado, token |
+| `ServiceArchitectureRules` | regras de arquitetura que todo serviço roda no `<Serviço>ArchitectureTests` (abaixo) |
+
+#### Regras de arquitetura
+
+Cada serviço segue a arquitetura hexagonal — `domain/{model,service,ports/in,ports/out}`,
+`application/service` e `infrastructure/{adapters/in,adapters/out,config}` — e o ArchUnit confere no
+código compilado, no `./mvnw -B verify`:
+
+| Regra | O que recusa |
+|---|---|
+| `domainIsPlainJava` | domínio que importa algo além de `java.*`, do próprio domínio e de `common.money`/`common.error` |
+| `layersPointInward` | dependência para fora: domínio → aplicação, ou aplicação → infraestrutura |
+| `adaptersTalkToPorts` | adapter que usa a implementação do caso de uso em vez da porta (`…UseCase`, `…Port`) |
+| `inboundAdaptersDoNotReachOutbound` | controller, consumidor ou job que chama direto um adapter de saída |
+| `inboundPortsAreUseCases`, `outboundPortsAreNamedPort` | porta de entrada sem o sufixo `UseCase`; de saída sem `Port` |
+| `servicesDoNotReachEachOther` | código de um serviço que importa classe de outro (só o `common` é compartilhado) |
+| `jdbcOnlyInThePersistenceAdapter` | `JdbcClient` ou `SqlTime` fora de `adapters/out/persistence` e `config` |
+| `cipherOnlyInThePersistenceAdapter` | `FieldCipher` ou `BlindIndexer` fora de `adapters/out/persistence` e `config` |
+| `clockIsInjected` | `Instant.now()`, `LocalDateTime.now()` e afins, `Clock.systemUTC()` — a hora vem do `Clock` injetado |
+| `accessRulesLiveInSecurityRoutes` | `@PreAuthorize`, `@Secured`, `@RolesAllowed`, `@EnableMethodSecurity` ou outro `SecurityFilterChain` |
+| `noStandardStreams`, `noJavaUtilLogging` | `System.out`, `printStackTrace` e `java.util.logging`, que escapariam do log mascarado |
+| `noFieldInjection` | `@Autowired` em campo — a dependência entra pelo construtor |
+
+A regra de uma camada que o serviço ainda não tem passa vazia e começa a valer quando a camada nasce. O
+`ServiceArchitectureRulesTests` do `common` prova cada regra contra um serviço de exemplo bem feito e
+contra uma classe que a quebra. O próprio `common` tem as dele: `common.money` e `common.error` sem
+Spring, e nenhuma classe que conheça um serviço.
 
 ### 3. Rodar um serviço
 

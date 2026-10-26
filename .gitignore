@@ -11,7 +11,8 @@ logs/
 .classpath
 .settings/
 .factorypath
-out/
+/out/
+/*/out/
 
 .DS_Store
 Thumbs.db
