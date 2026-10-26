@@ -1,6 +1,14 @@
 spring:
   application:
     name: vehicles-service
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5440/vehicles}
+    username: ${DB_APP_USER:vehicles_app}
+    password: ${DB_APP_PASSWORD}
+  flyway:
+    url: ${DB_URL:jdbc:postgresql://localhost:5440/vehicles}
+    user: ${DB_OWNER_USER:vehicles_owner}
+    password: ${DB_OWNER_PASSWORD}
 
 server:
   port: 8081
