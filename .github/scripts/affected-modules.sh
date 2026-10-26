@@ -2,7 +2,7 @@
 set -euo pipefail
 
 modules=(vehicles-service customers-service sales-service payment-gateway-mock)
-shared='^(common/|pom\.xml$|\.mvn/|mvnw|\.github/)'
+shared='^(common/|pom\.xml$|\.mvn/|mvnw|\.github/|infra/postgres/)'
 
 all=false
 changed=""

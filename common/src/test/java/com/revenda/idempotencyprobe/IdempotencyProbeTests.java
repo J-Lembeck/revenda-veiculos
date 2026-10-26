@@ -6,17 +6,15 @@ import com.revenda.common.error.FieldViolation;
 import com.revenda.common.error.web.ApiError;
 import com.revenda.common.idempotency.IdempotencyFilter;
 import com.revenda.common.observability.RequestIdFilter;
-import com.revenda.common.test.TestTokens;
+import com.revenda.common.test.ApiDriver;
 import com.revenda.idempotencyprobe.IdempotencyProbeApplication.RegisteredVehicle;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.resttestclient.TestRestTemplate;
-import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 
 class IdempotencyProbeTests extends IdempotencyProbeSupport {
@@ -36,7 +34,7 @@ class IdempotencyProbeTests extends IdempotencyProbeSupport {
     void creationWithoutTheKeyAnswersPreconditionRequiredAndRunsNothing() {
         int before = registrations.get();
 
-        ResponseEntity<ApiError> response = post(TestTokens.seller(SELLER), null, BODY, ApiError.class);
+        ResponseEntity<ApiError> response = post(seller(SELLER).withoutIdempotencyKey(), BODY, ApiError.class);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.PRECONDITION_REQUIRED);
         assertThat(response.getBody().code()).isEqualTo("IDEMPOTENCY_KEY_REQUIRED");
@@ -46,11 +44,11 @@ class IdempotencyProbeTests extends IdempotencyProbeSupport {
 
     @Test
     void repetitionWithTheSameKeyAndBodyGetsTheSameResponse() {
-        String key = newKey();
+        ApiDriver seller = seller(SELLER).withIdempotencyKey(newKey());
         int before = registrations.get();
 
-        ResponseEntity<RegisteredVehicle> first = post(TestTokens.seller(SELLER), key, BODY, RegisteredVehicle.class);
-        ResponseEntity<RegisteredVehicle> second = post(TestTokens.seller(SELLER), key, BODY, RegisteredVehicle.class);
+        ResponseEntity<RegisteredVehicle> first = post(seller, BODY, RegisteredVehicle.class);
+        ResponseEntity<RegisteredVehicle> second = post(seller, BODY, RegisteredVehicle.class);
 
         assertThat(first.getStatusCode()).isEqualTo(HttpStatus.CREATED);
         assertThat(second.getStatusCode()).isEqualTo(HttpStatus.CREATED);
@@ -60,10 +58,10 @@ class IdempotencyProbeTests extends IdempotencyProbeSupport {
 
     @Test
     void sameKeyWithAnotherBodyAnswersUnprocessable() {
-        String key = newKey();
-        post(TestTokens.seller(SELLER), key, BODY, RegisteredVehicle.class);
+        ApiDriver seller = seller(SELLER).withIdempotencyKey(newKey());
+        post(seller, BODY, RegisteredVehicle.class);
 
-        ResponseEntity<ApiError> response = post(TestTokens.seller(SELLER), key, OTHER_BODY, ApiError.class);
+        ResponseEntity<ApiError> response = post(seller, OTHER_BODY, ApiError.class);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.UNPROCESSABLE_CONTENT);
         assertThat(response.getBody().code()).isEqualTo("IDEMPOTENCY_KEY_REUSED");
@@ -75,9 +73,10 @@ class IdempotencyProbeTests extends IdempotencyProbeSupport {
     void theSameKeyFromAnotherPersonIsAnotherRequest() {
         String key = newKey();
 
-        ResponseEntity<RegisteredVehicle> mine = post(TestTokens.seller(SELLER), key, BODY, RegisteredVehicle.class);
+        ResponseEntity<RegisteredVehicle> mine =
+                post(seller(SELLER).withIdempotencyKey(key), BODY, RegisteredVehicle.class);
         ResponseEntity<RegisteredVehicle> theirs =
-                post(TestTokens.seller(OTHER_SELLER), key, BODY, RegisteredVehicle.class);
+                post(seller(OTHER_SELLER).withIdempotencyKey(key), BODY, RegisteredVehicle.class);
 
         assertThat(theirs.getStatusCode()).isEqualTo(HttpStatus.CREATED);
         assertThat(theirs.getBody().id()).isNotEqualTo(mine.getBody().id());
@@ -87,7 +86,7 @@ class IdempotencyProbeTests extends IdempotencyProbeSupport {
     void malformedKeyAnswersValidationFailedOnTheHeader() {
         int before = registrations.get();
 
-        ResponseEntity<ApiError> response = post(TestTokens.seller(SELLER), "curta", BODY, ApiError.class);
+        ResponseEntity<ApiError> response = post(seller(SELLER).withIdempotencyKey("curta"), BODY, ApiError.class);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
         assertThat(response.getBody().code()).isEqualTo("VALIDATION_FAILED");
@@ -99,22 +98,18 @@ class IdempotencyProbeTests extends IdempotencyProbeSupport {
 
     @Test
     void requestWithoutTokenIsRefusedBeforeTheKeyIsLookedAt() {
-        ResponseEntity<ApiError> response = post(null, "curta", BODY, ApiError.class);
+        ResponseEntity<ApiError> response = post(new ApiDriver(rest).withIdempotencyKey("curta"), BODY, ApiError.class);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
         assertThat(response.getBody().code()).isEqualTo("UNAUTHENTICATED");
     }
 
-    private <T> ResponseEntity<T> post(String token, String key, String body, Class<T> type) {
-        HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.APPLICATION_JSON);
-        if (token != null) {
-            headers.setBearerAuth(token);
-        }
-        if (key != null) {
-            headers.set(IdempotencyFilter.HEADER, key);
-        }
-        return rest.postForEntity("/vehicles", new HttpEntity<>(body, headers), type);
+    private ApiDriver seller(String subject) {
+        return new ApiDriver(rest).asSeller(subject);
+    }
+
+    private static <T> ResponseEntity<T> post(ApiDriver driver, String rawBody, Class<T> type) {
+        return driver.exchange(HttpMethod.POST, "/vehicles", rawBody, type);
     }
 
     private static String newKey() {
