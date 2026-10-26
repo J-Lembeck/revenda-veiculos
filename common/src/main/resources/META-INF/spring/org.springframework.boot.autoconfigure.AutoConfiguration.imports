@@ -2,3 +2,4 @@ com.revenda.common.time.ClockAutoConfiguration
 com.revenda.common.error.web.WebErrorAutoConfiguration
 com.revenda.common.security.ResourceServerAutoConfiguration
 com.revenda.common.idempotency.IdempotencyAutoConfiguration
+com.revenda.common.audit.AuditAutoConfiguration

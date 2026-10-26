@@ -2,6 +2,7 @@ package com.revenda.common.idempotency;
 
 import com.revenda.common.error.BusinessException;
 import com.revenda.common.error.CommonError;
+import com.revenda.common.jdbc.Transactions;
 import com.revenda.common.security.ActorContextHolder;
 import com.revenda.common.time.SqlTime;
 import java.time.Clock;
@@ -11,8 +12,6 @@ import java.util.function.Supplier;
 import javax.sql.DataSource;
 import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.simple.JdbcClient;
-import org.springframework.transaction.IllegalTransactionStateException;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
 import tools.jackson.databind.ObjectMapper;
 
 /**
@@ -49,7 +48,7 @@ public class JdbcIdempotencyStore implements IdempotencyStore {
 
     @Override
     public <T> Outcome<T> once(Class<T> resultType, Supplier<T> command) {
-        requireOpenTransaction();
+        Transactions.requireOpen(dataSource, "A chave de idempotência só é gravada dentro da transação do comando");
         IdempotencyRequest request = IdempotencyContextHolder.get();
         if (request == null) {
             return new Outcome<>(command.get(), false);
@@ -103,13 +102,6 @@ public class JdbcIdempotencyStore implements IdempotencyStore {
                 .param("key", key)
                 .param("body", objectMapper.writeValueAsString(result))
                 .update();
-    }
-
-    private void requireOpenTransaction() {
-        if (!TransactionSynchronizationManager.hasResource(dataSource)) {
-            throw new IllegalTransactionStateException(
-                    "A chave de idempotência só é gravada dentro da transação do comando");
-        }
     }
 
     private static String requireActor() {

@@ -32,6 +32,12 @@ class ActorContextHolderTests {
     }
 
     @Test
+    void anonymousActorTurnsIntoTheSystemKeepingOnlyTheRequestId() {
+        assertThat(ActorContext.anonymous("requisicao-3").asSystem())
+                .isEqualTo(new ActorContext(ActorType.SYSTEM, null, null, "requisicao-3"));
+    }
+
+    @Test
     void withoutAnOuterActorNothingIsLeftBehindEvenOnFailure() {
         ActorContext service = new ActorContext(ActorType.SERVICE, "sales-service", null, "requisicao-2");
 
