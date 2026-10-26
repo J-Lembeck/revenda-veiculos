@@ -4,3 +4,5 @@ com.revenda.common.security.ResourceServerAutoConfiguration
 com.revenda.common.idempotency.IdempotencyAutoConfiguration
 com.revenda.common.audit.AuditAutoConfiguration
 com.revenda.common.outbox.OutboxAutoConfiguration
+com.revenda.common.crypto.KmsAutoConfiguration
+com.revenda.common.crypto.CryptoAutoConfiguration

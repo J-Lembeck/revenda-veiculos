@@ -29,10 +29,18 @@
         <java.version>21</java.version>
         <archunit.version>1.5.1</archunit.version>
         <bucket4j.version>8.21.0</bucket4j.version>
+        <aws-sdk.version>2.57.3</aws-sdk.version>
     </properties>
 
     <dependencyManagement>
         <dependencies>
+            <dependency>
+                <groupId>software.amazon.awssdk</groupId>
+                <artifactId>bom</artifactId>
+                <version>${aws-sdk.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
             <dependency>
                 <groupId>com.revenda</groupId>
                 <artifactId>common</artifactId>
