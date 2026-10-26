@@ -85,6 +85,7 @@ Os usuários de teste e as senhas de desenvolvimento estão em
 | Usuário | Papel | Para testar |
 |---|---|---|
 | `ana.cliente@example.test` | `CUSTOMER` | compra com cadastro completo |
+| `duda.cliente@example.test` | `CUSTOMER` | segunda compradora: reserva antes da Ana no cenário de reserva concorrente |
 | `bruno.sem-cadastro@example.test` | `CUSTOMER` | compra sem cadastro (deve ser recusada) |
 | `caio.menor@example.test` | `CUSTOMER` | comprador menor de idade (deve ser recusado) |
 | `vera.vendedora@example.test` | `SELLER` | cadastro de veículos e confirmação da retirada |
@@ -93,6 +94,119 @@ Os usuários de teste e as senhas de desenvolvimento estão em
 `SELLER` e `ADMIN` configuram o segundo fator (TOTP, em qualquer app autenticador) no primeiro login.
 Quem se cadastra pela tela do Keycloak recebe o papel `CUSTOMER`. Os segredos dos clientes de serviço
 vêm do `.env`.
+
+O realm só é importado quando o contêiner do Keycloak é criado. Se o seu foi criado antes de um usuário
+novo entrar no `realm.json`, recrie-o — isso apaga as sessões e o TOTP já configurado:
+
+```bash
+cd infra
+docker compose up -d --force-recreate keycloak
+```
+
+## Testar com o Postman
+
+A pasta [`postman/`](postman) tem a coleção com **todas as rotas da API**, cada uma com a descrição do
+caso de uso, o papel e o que deve aparecer, e testes do contrato:
+
+- `revenda-veiculos.postman_collection.json` — a coleção (formato Collection v2.1);
+- `revenda-local.postman_environment.json` — o ambiente `revenda-local`: endereços locais e as variáveis
+  secretas, todas vazias.
+
+### Antes de começar
+
+1. Use o **Postman desktop**: o Postman na web não alcança `localhost`.
+2. Suba o ambiente local e os quatro serviços (seções acima), cada um num terminal:
+
+   ```bash
+   ./mvnw -B install -DskipTests
+   ./mvnw -pl vehicles-service spring-boot:run
+   ./mvnw -pl customers-service spring-boot:run
+   ./mvnw -pl sales-service spring-boot:run
+   ./mvnw -pl payment-gateway-mock spring-boot:run
+   ```
+
+3. **Import** → os dois arquivos de `postman/`. No canto superior direito, escolha o ambiente
+   `revenda-local`.
+4. No ambiente, preencha o **valor atual** (*Current value*) das variáveis secretas com os valores do
+   seu `infra/.env`. O valor atual fica só na sua máquina; não exporte nem versione o ambiente preenchido.
+
+   | Variável do ambiente | Valor do `infra/.env` | Para quê |
+   |---|---|---|
+   | `salesServiceClientSecret` | `SALES_SERVICE_CLIENT_SECRET` | token de serviço do `sales-service` |
+   | `customersServiceClientSecret` | `CUSTOMERS_SERVICE_CLIENT_SECRET` | token de serviço do `customers-service` |
+   | `paymentGatewayApiKey` | `PAYMENT_GATEWAY_API_KEY` | `X-Api-Key` do gateway simulado |
+   | `paymentWebhookSecret` | `PAYMENT_WEBHOOK_SECRET` | assinar um webhook velho (teste de *replay*) |
+
+   As variáveis `token…` também são secretas: a coleção as preenche sozinha.
+
+### Entrar com cada pessoa
+
+A pasta **00 · Entrar** tem uma requisição por pessoa. O login é OAuth 2.0 *Authorization Code* com
+PKCE no cliente público `revenda-web` do Keycloak — sem segredo, e nenhuma senha fica na coleção: os
+usuários e as senhas de desenvolvimento estão só em
+[`infra/keycloak/realm.json`](infra/keycloak/realm.json) (tabela de usuários acima).
+
+1. Abra a requisição da pessoa → aba **Authorization** → **Clear cookies** (o Keycloak guarda a sessão de
+   quem entrou por último).
+2. **Get New Access Token**. A janela de login é a do próprio Postman — deixe **Authorize using
+   browser** desligado; o retorno vai para `http://localhost:8083/oauth2/callback/postman`, que o realm
+   aceita.
+3. Entre com o e-mail da pessoa e a senha do `realm.json`. `vera.vendedora` e `otto.admin` configuram
+   o TOTP no primeiro login (QR code num app autenticador).
+4. **Use Token** → **Send**. O teste confere o papel e guarda o token no ambiente (`tokenAna`,
+   `tokenDuda`, `tokenBruno`, `tokenCaio`, `tokenVera`, `tokenOtto`).
+
+O token de acesso vale 15 minutos. Venceu (as rotas respondem `401`)? Peça outro na mesma requisição e
+mande-a de novo.
+
+### Ordem das pastas
+
+Depois da 00, rode cada pasta no **Runner** (*Run folder*), nesta ordem — os ids passam de uma
+requisição para a outra pelas variáveis da coleção (`vehicleId`, `customerId`, `purchaseId`,
+`chargeId`…):
+
+| Pasta | O que mostra |
+|---|---|
+| 01 · Ambiente e segurança | `health` dos quatro serviços; `401` sem token ou com token inválido; `403` de token de pessoa em rota interna; `X-Request-Id` |
+| 02 · Estoque (vendedora) | cadastrar e editar veículo, `Idempotency-Key` (repetida e sem ela), validação, `version`, vendidos |
+| 03 · Vitrine pública | vitrine por preço crescente, filtros, paginação, sem placa nem chassi para o visitante |
+| 04 · Cadastro do cliente | cadastro com CPF mascarado, e-mail do token, CPF repetido ou inválido |
+| 05 · Compra — fluxo feliz | reservar → simular o Pix no gateway → acompanhar → retirada com conferência de CPF → baixa no estoque → documento |
+| 06 · Compra — falhas | reserva concorrente, uma compra ativa por cliente, desistência antes e depois de pagar, valor errado, webhook duplicado, sem cadastro, menor de idade, webhook sem assinatura, expiração e pagamento atrasado |
+| 07 · Equipe | cliente mascarado para a vendedora, CPF revelado pelo admin com motivo, todas as compras |
+| 08 · LGPD | exportar os próprios dados, pedido de exclusão |
+| 09 · Gateway simulado | cobrança com `X-Api-Key`: criar, idempotência por `referenceId`, buscar, cancelar |
+| 10 · Rotas internas | as rotas `/internal/**` com token de serviço |
+| 99 · Limite de taxa | estoura o limite de `POST /purchases` e `POST /customers` — **por último** |
+
+- O Runner espera sozinho: espaça os `POST /purchases` (10 por minuto) e `POST /customers` (5 por
+  minuto) para não esbarrar no limite de taxa, e repete por até 20 s as consultas que esperam um efeito
+  assíncrono (webhook, fila, documento). A pasta 04 leva cerca de um minuto por isso.
+- A expiração (06.8) só acontece em tempo de teste com o prazo de pagamento curto: suba o `sales` com
+  `PAYMENT_WINDOW=PT1M`. Com o prazo padrão (30 minutos), a pasta desiste da compra e segue.
+- Os dados são sintéticos: CPFs com dígito válido fixos nas variáveis da coleção, e-mails
+  `@example.test`, e placa, chassi e RENAVAM novos a cada execução. A coleção pode rodar quantas vezes
+  quiser; nas seguintes, o cadastro já existe e responde `409 CUSTOMER_ALREADY_REGISTERED`, o que os
+  testes aceitam.
+- Toda resposta dos serviços passa pelos testes `[contrato]`: `X-Request-Id` no cabeçalho, erro no
+  formato `{ code, message, requestId, fields }` com o mesmo `requestId`, dinheiro em centavos inteiros.
+
+**Rota ainda não implementada** responde `401` sem token e `404` com token, e os testes dela falham até a
+etapa que a cria. Hoje só a pasta 01 passa inteira.
+
+### Pela linha de comando
+
+A pasta 01 roda também no [Newman](https://github.com/postmanlabs/newman), sem login de pessoa (o teste
+que precisa do token da Ana é pulado), com os segredos lidos do `infra/.env`:
+
+```bash
+set -a; . infra/.env; set +a
+npx newman run postman/revenda-veiculos.postman_collection.json \
+  -e postman/revenda-local.postman_environment.json \
+  --env-var "salesServiceClientSecret=$SALES_SERVICE_CLIENT_SECRET" \
+  --env-var "customersServiceClientSecret=$CUSTOMERS_SERVICE_CLIENT_SECRET" \
+  --folder "01 · Ambiente e segurança"
+```
 
 ## Estrutura
 
@@ -110,6 +224,7 @@ revenda-veiculos/
 │   ├── postgres/init.sh     bancos e roles
 │   ├── localstack/init.sh   fila, chaves, bucket e segredos
 │   └── keycloak/realm.json  realm, clientes, papéis e usuários sintéticos
+├── postman/                 coleção com todas as rotas e o ambiente local
 └── .github/
     ├── workflows/ci.yml     um job por serviço
     └── scripts/affected-modules.sh
