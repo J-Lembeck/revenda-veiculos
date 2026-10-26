@@ -26,7 +26,6 @@ import org.springframework.security.oauth2.jwt.SupplierJwtDecoder;
 import org.springframework.security.oauth2.server.resource.web.authentication.BearerTokenAuthenticationFilter;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
-import tools.jackson.databind.ObjectMapper;
 
 /**
  * Cada serviço que tem o starter de resource server é protegido por esta cadeia: token do provedor de
@@ -68,12 +67,6 @@ public class ResourceServerAutoConfiguration {
     @Bean
     RateLimiter rateLimiter(ResourceServerProperties properties, Clock clock) {
         return new RateLimiter(properties.rateLimit().enabled(), clock);
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
-    ApiErrorWriter apiErrorWriter(ObjectMapper objectMapper) {
-        return new ApiErrorWriter(objectMapper);
     }
 
     @Bean
