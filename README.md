@@ -64,7 +64,21 @@ locais): `docker compose down -v`.
 ```
 
 Os testes que usam banco sobem um PostgreSQL próprio pelo Testcontainers: o Docker precisa estar aberto,
-mas o Compose não precisa estar de pé.
+mas o Compose não precisa estar de pé. Esse PostgreSQL é preparado pelo mesmo `infra/postgres/init.sh` do
+ambiente local, com senhas sorteadas a cada execução: o teste de um serviço roda as migrations com a role
+`<serviço>_owner` e conecta a aplicação com a `<serviço>_app`, como na subida real.
+
+A base de teste fica no test-jar do `common` (`com.revenda.common.test`):
+
+| Peça | Para quê |
+|---|---|
+| `PostgresTestDatabase` | PostgreSQL único da suíte; `register(registry, "vehicles")` liga o *datasource* à `_app` e o Flyway à `_owner` |
+| `LocalStackTestKms` | LocalStack único da suíte, com o KMS |
+| `TestTokens`, `TestTokenConfiguration` | tokens de pessoa (por papel) e de serviço, assinados por uma chave gerada na memória |
+| `ApiDriver` | chama a API em JSON com o token de quem chama e uma `Idempotency-Key` nova em todo `POST` |
+| `SyntheticData` | CPF sorteado com dígito verificador válido e e-mail em `@example.test` — só dado inventado |
+| `MovableClock` | relógio que o teste adianta |
+| `ServiceFoundationContract`, `ResourceServerContract` | testes que todo serviço herda: `health`, formato de erro, log mascarado, token |
 
 ### 3. Rodar um serviço
 
@@ -246,7 +260,8 @@ GitHub Actions com **um job por serviço**: cada job compila e testa só o seu s
 falha de um serviço não interrompe os outros.
 
 - Em *pull request*, só rodam os serviços cuja pasta mudou. Mudança no `common`, no `pom.xml` raiz, no
-  wrapper ou em `.github/` roda todos; mudança só em `infra/` ou na documentação não roda nenhum. A
+  wrapper, em `.github/` ou em `infra/postgres/` (que prepara o banco dos testes) roda todos; mudança só
+  no resto de `infra/` ou na documentação não roda nenhum. A
   escolha fica em [`.github/scripts/affected-modules.sh`](.github/scripts/affected-modules.sh).
 - Em *push* na `main`, rodam todos.
 - O job `resultado` resume os demais e é o *check* a exigir na proteção da `main` — serviço que não
