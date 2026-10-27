@@ -11,6 +11,7 @@ import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Positive;
+import java.time.LocalDate;
 import java.util.List;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
@@ -41,7 +42,7 @@ class ErrorProbeApplication {
         private final String message;
     }
 
-    record VehicleRequest(@NotBlank String brand, @Positive long priceCents, @Min(1900) int year) {
+    record VehicleRequest(@NotBlank String brand, @Positive long priceCents, @Min(1900) int year, LocalDate soldOn) {
     }
 
     @RestController

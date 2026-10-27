@@ -97,11 +97,22 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     @Override
     protected ResponseEntity<Object> handleHttpMessageNotReadable(HttpMessageNotReadableException ex,
             HttpHeaders headers, HttpStatusCode status, WebRequest request) {
-        if (ex.getMostSpecificCause() instanceof JacksonException jackson && !jackson.getPath().isEmpty()) {
+        JacksonException jackson = jacksonCauseOf(ex);
+        if (jackson != null && !jackson.getPath().isEmpty()) {
             FieldViolation field = new FieldViolation(path(jackson), TYPE_INVALID, TYPE_INVALID_MESSAGE);
             return validationFailed(CommonError.VALIDATION_FAILED.getMessage(), List.of(field), headers, request);
         }
         return validationFailed(BODY_UNREADABLE_MESSAGE, List.of(), headers, request);
+    }
+
+    /** O erro do Jackson, que sabe o campo, mesmo quando ele embrulha outro (a data que não existe, por exemplo). */
+    private static JacksonException jacksonCauseOf(Throwable failure) {
+        for (Throwable cause = failure; cause != null; cause = cause.getCause()) {
+            if (cause instanceof JacksonException jackson) {
+                return jackson;
+            }
+        }
+        return null;
     }
 
     @Override
