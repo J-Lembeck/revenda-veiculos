@@ -146,6 +146,9 @@ os demais endpoints do Actuator respondem `404`.
 |---|---|---|---|
 | `vehicles` | `POST /vehicles` | `SELLER`, `ADMIN` | cadastra um veículo à venda (`Idempotency-Key` obrigatória) |
 | `vehicles` | `PUT /vehicles/{id}` | `SELLER`, `ADMIN` | edita um veículo à venda ou reservado, com a `version` lida |
+| `vehicles` | `GET /vehicles` | qualquer um | vitrine: só à venda, do mais barato ao mais caro, com filtros e paginação |
+| `vehicles` | `GET /vehicles/{id}` | qualquer um | detalhe: o público vê só o que está à venda; a equipe vê qualquer um |
+| `vehicles` | `GET /vehicles/sold` | `SELLER`, `ADMIN` | vendidos e entregues, do menor para o maior preço de venda |
 
 O cadastro confere marca, modelo, cor, quilometragem, anos (fabricação de 1900 ao ano que vem; modelo
 igual ou no ano seguinte), preço (acima de zero e até R$ 10.000.000,00, em centavos), placa (padrão antigo
@@ -161,6 +164,22 @@ entregue não se edita (`409 VEHICLE_NOT_EDITABLE`). A edição não mexe no sta
 preço de um veículo reservado não muda o valor de quem o reservou, que foi fixado na reserva. A resposta
 traz a `version` nova, e a auditoria `VEHICLE_UPDATED` guarda o veículo antes e depois.
 
+As listagens são paginadas (`?page=0&size=20`, até 100 por página) e respondem
+`{ items, page, size, totalItems }`. A ordem tem sempre o `id` como desempate (`ORDER BY price_cents, id`
+na vitrine, `ORDER BY sold_price_cents, id` nos vendidos), então dois veículos com o mesmo preço nunca
+trocam de lugar entre uma página e a outra. Cada ordem tem um índice parcial no banco, só com as linhas
+daquele status. A vitrine filtra por marca e modelo (o nome inteiro, sem diferença de maiúsculas), faixa de
+preço em centavos e faixa do ano do modelo, com as pontas incluídas.
+
+O público nunca vê placa, chassi nem RENAVAM: a vitrine e o detalhe respondem com um item sem esses
+campos, e o detalhe de um veículo reservado, vendido ou entregue responde `404` para quem não é da equipe.
+A equipe vê o veículo inteiro em qualquer status, inclusive na lista de vendidos.
+
+Rota aberta não precisa de token, mas um token que vem é conferido: vencido, adulterado ou de um cliente
+não aceito responde `401`, como em qualquer rota. Ele nunca vira visitante em silêncio — assim, quem é da
+equipe e teve a sessão vencida não vê a vitrine pública achando que é a dela. Ao receber `401` numa rota
+aberta, o front descarta o token e repete o pedido sem `Authorization`.
+
 ## Usuários sintéticos
 
 Os usuários de teste e as senhas de desenvolvimento estão em
@@ -175,12 +194,16 @@ Os usuários de teste e as senhas de desenvolvimento estão em
 | `vera.vendedora@example.test` | `SELLER` | cadastro de veículos e confirmação da retirada |
 | `otto.admin@example.test` | `ADMIN` | revelação de CPF com motivo e pedidos de titular |
 
-`SELLER` e `ADMIN` configuram o segundo fator (TOTP, em qualquer app autenticador) no primeiro login.
-Quem se cadastra pela tela do Keycloak recebe o papel `CUSTOMER`. Os segredos dos clientes de serviço
+No ambiente local, ninguém configura segundo fator: todos entram só com e-mail e senha, para quem avalia
+o projeto conseguir usar o sistema sem um app autenticador. Na nuvem, o Cognito exige MFA de `SELLER` e
+`ADMIN` — a equipe vê dados de clientes e revela CPF, e uma senha vazada sozinha não pode bastar para
+isso. O Keycloak suporta a mesma regra: basta pôr `"requiredActions": ["CONFIGURE_TOTP"]` nesses dois
+usuários do `realm.json` e recriar o contêiner. Quem se cadastra pela tela do Keycloak recebe o papel `CUSTOMER`. Os segredos dos clientes de serviço
 vêm do `.env`.
 
 O realm só é importado quando o contêiner do Keycloak é criado. Se o seu foi criado antes de um usuário
-novo entrar no `realm.json`, recrie-o — isso apaga as sessões e o TOTP já configurado:
+novo ou uma mudança entrar no `realm.json`, recrie-o — isso apaga as sessões e qualquer segundo fator já
+configurado:
 
 ```bash
 cd infra
@@ -236,8 +259,7 @@ usuários e as senhas de desenvolvimento estão só em
 2. **Get New Access Token**. A janela de login é a do próprio Postman — deixe **Authorize using
    browser** desligado; o retorno vai para `http://localhost:8083/oauth2/callback/postman`, que o realm
    aceita.
-3. Entre com o e-mail da pessoa e a senha do `realm.json`. `vera.vendedora` e `otto.admin` configuram
-   o TOTP no primeiro login (QR code num app autenticador).
+3. Entre com o e-mail da pessoa e a senha do `realm.json`. No local não há segundo fator.
 4. **Use Token** → **Send**. O teste confere o papel e guarda o token no ambiente (`tokenAna`,
    `tokenDuda`, `tokenBruno`, `tokenCaio`, `tokenVera`, `tokenOtto`).
 
@@ -277,7 +299,8 @@ requisição para a outra pelas variáveis da coleção (`vehicleId`, `customerI
   formato `{ code, message, requestId, fields }` com o mesmo `requestId`, dinheiro em centavos inteiros.
 
 **Rota ainda não implementada** responde `401` sem token e `404` com token, e os testes dela falham até a
-etapa que a cria. Hoje só a pasta 01 passa inteira.
+etapa que a cria. Hoje passam inteiras a 01 (com os quatro serviços de pé), a 02 e a 03 (com o
+`vehicles-service` de pé e, na 02, o token de serviço que a 01 guarda).
 
 ### Pela linha de comando
 

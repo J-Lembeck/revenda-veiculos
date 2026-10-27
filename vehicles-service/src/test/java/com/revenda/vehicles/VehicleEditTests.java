@@ -126,9 +126,8 @@ class VehicleEditTests extends VehiclesApiTest {
     @Test
     void aReservedVehicleIsEditableAndTheNewPriceDoesNotTouchThePurchase() {
         Registered vehicle = register();
-        UUID purchase = UUID.randomUUID();
-        jdbc.sql("UPDATE vehicle SET status = 'RESERVED', purchase_id = :purchase WHERE id = :id")
-                .param("purchase", purchase).param("id", vehicle.id()).update();
+        markReserved(vehicle.id());
+        Object purchase = row(vehicle.id()).get("purchase_id");
 
         ResponseEntity<JsonNode> response = api().asSeller(SELLER)
                 .put(vehicle.path(), vehicle.edit(Map.of("priceCents", 7_990_000L)));
@@ -143,13 +142,7 @@ class VehicleEditTests extends VehiclesApiTest {
     @ValueSource(strings = {"SOLD", "DELIVERED"})
     void aSoldOrDeliveredVehicleIsNotEditable(String status) {
         Registered vehicle = register();
-        jdbc.sql("""
-                        UPDATE vehicle
-                           SET status = :status, purchase_id = :purchase, sold_price_cents = price_cents,
-                               sold_at = created_at,
-                               delivered_at = CASE WHEN :status = 'DELIVERED' THEN created_at END
-                         WHERE id = :id""")
-                .param("status", status).param("purchase", UUID.randomUUID()).param("id", vehicle.id()).update();
+        markSold(vehicle.id(), 8_990_000L, status.equals("DELIVERED"));
 
         ResponseEntity<JsonNode> response = api().asSeller(SELLER)
                 .put(vehicle.path(), vehicle.edit(Map.of("priceCents", 7_990_000L)));
@@ -235,16 +228,6 @@ class VehicleEditTests extends VehiclesApiTest {
         assertThat(response.getBody().get("code").asString()).isEqualTo("UNAUTHENTICATED");
     }
 
-    private Registered register() {
-        Map<String, Object> body = vehicleBody();
-        String id = api().asSeller(SELLER).post("/vehicles", body).getBody().get("id").asString();
-        return new Registered(UUID.fromString(id), body);
-    }
-
-    private Map<String, Object> row(UUID id) {
-        return jdbc.sql("SELECT * FROM vehicle WHERE id = :id").param("id", id).query().singleRow();
-    }
-
     private int updatesAudited(UUID id) {
         return jdbc.sql("SELECT count(*) FROM audit_log WHERE action = 'VEHICLE_UPDATED' AND entity_id = :id")
                 .param("id", id).query(Integer.class).single();
@@ -255,22 +238,6 @@ class VehicleEditTests extends VehiclesApiTest {
             barrier.await();
         } catch (Exception e) {
             throw new IllegalStateException(e);
-        }
-    }
-
-    /** Um veículo cadastrado pelo {@code POST}, com o corpo que o criou. */
-    private record Registered(UUID id, Map<String, Object> body) {
-
-        String path() {
-            return "/vehicles/" + id;
-        }
-
-        /** O corpo do {@code PUT}: o veículo como foi cadastrado, na versão 0, com o que vier em {@code changes}. */
-        Map<String, Object> edit(Map<String, Object> changes) {
-            Map<String, Object> edit = new HashMap<>(body);
-            edit.put("version", 0);
-            edit.putAll(changes);
-            return edit;
         }
     }
 }

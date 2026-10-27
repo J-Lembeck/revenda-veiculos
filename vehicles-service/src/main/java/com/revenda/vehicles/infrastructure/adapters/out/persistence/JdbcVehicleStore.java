@@ -3,6 +3,9 @@ package com.revenda.vehicles.infrastructure.adapters.out.persistence;
 import com.revenda.common.error.BusinessException;
 import com.revenda.common.money.Money;
 import com.revenda.common.time.SqlTime;
+import com.revenda.vehicles.domain.model.Page;
+import com.revenda.vehicles.domain.model.Paging;
+import com.revenda.vehicles.domain.model.ShowcaseFilter;
 import com.revenda.vehicles.domain.model.Vehicle;
 import com.revenda.vehicles.domain.model.VehicleDetails;
 import com.revenda.vehicles.domain.model.VehicleStatus;
@@ -11,6 +14,9 @@ import com.revenda.vehicles.domain.ports.out.LoadVehiclePort;
 import com.revenda.vehicles.domain.ports.out.SaveVehiclePort;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -31,6 +37,12 @@ class JdbcVehicleStore implements SaveVehiclePort, LoadVehiclePort {
             "vehicle_plate_key", VehiclesError.PLATE_ALREADY_REGISTERED,
             "vehicle_vin_key", VehiclesError.VIN_ALREADY_REGISTERED,
             "vehicle_renavam_key", VehiclesError.RENAVAM_ALREADY_REGISTERED);
+
+    private static final String SELECT_VEHICLE = """
+            SELECT id, brand, model, trim_name, manufacture_year, model_year, color, mileage_km, plate, vin, renavam,
+                   price_cents, status, purchase_id, sold_price_cents, sold_at, delivered_at, version, created_at,
+                   updated_at
+              FROM vehicle""";
 
     private final JdbcClient jdbc;
 
@@ -68,15 +80,60 @@ class JdbcVehicleStore implements SaveVehiclePort, LoadVehiclePort {
 
     @Override
     public Optional<Vehicle> findById(UUID id) {
-        return jdbc.sql("""
-                        SELECT id, brand, model, trim_name, manufacture_year, model_year, color, mileage_km, plate,
-                               vin, renavam, price_cents, status, purchase_id, sold_price_cents, sold_at,
-                               delivered_at, version, created_at, updated_at
-                          FROM vehicle
-                         WHERE id = :id""")
+        return jdbc.sql(SELECT_VEHICLE + " WHERE id = :id")
                 .param("id", id)
                 .query((row, n) -> vehicle(row))
                 .optional();
+    }
+
+    @Override
+    public Page<Vehicle> findForSale(ShowcaseFilter filter, Paging paging) {
+        List<String> where = new ArrayList<>(List.of("status = 'AVAILABLE'"));
+        Map<String, Object> params = new HashMap<>();
+        if (filter.brand() != null) {
+            where.add("lower(brand) = lower(:brand)");
+            params.put("brand", filter.brand());
+        }
+        if (filter.model() != null) {
+            where.add("lower(model) = lower(:model)");
+            params.put("model", filter.model());
+        }
+        if (filter.minPrice() != null) {
+            where.add("price_cents >= :minPriceCents");
+            params.put("minPriceCents", filter.minPrice().toCents());
+        }
+        if (filter.maxPrice() != null) {
+            where.add("price_cents <= :maxPriceCents");
+            params.put("maxPriceCents", filter.maxPrice().toCents());
+        }
+        if (filter.minYear() != null) {
+            where.add("model_year >= :minYear");
+            params.put("minYear", filter.minYear());
+        }
+        if (filter.maxYear() != null) {
+            where.add("model_year <= :maxYear");
+            params.put("maxYear", filter.maxYear());
+        }
+        return page(" WHERE " + String.join(" AND ", where), "price_cents, id", params, paging);
+    }
+
+    @Override
+    public Page<Vehicle> findSold(Paging paging) {
+        return page(" WHERE status IN ('SOLD', 'DELIVERED')", "sold_price_cents, id", Map.of(), paging);
+    }
+
+    private Page<Vehicle> page(String where, String orderBy, Map<String, Object> params, Paging paging) {
+        List<Vehicle> items = jdbc.sql(SELECT_VEHICLE + where + " ORDER BY " + orderBy + " LIMIT :limit OFFSET :offset")
+                .params(params)
+                .param("limit", paging.size())
+                .param("offset", paging.offset())
+                .query((row, n) -> vehicle(row))
+                .list();
+        long total = jdbc.sql("SELECT count(*) FROM vehicle" + where)
+                .params(params)
+                .query(Long.class)
+                .single();
+        return Page.of(items, paging, total);
     }
 
     private static StatementSpec withDetails(StatementSpec statement, VehicleDetails details) {

@@ -25,11 +25,7 @@ record VehicleRequest(
     }
 
     VehicleDetails toDetails() {
-        return new VehicleDetails(brand.strip(), model.strip(), blankToNull(trimName), manufactureYear, modelYear,
-                color.strip(), mileageKm, plate, vin, renavam, Money.ofCents(priceCents));
-    }
-
-    private static String blankToNull(String text) {
-        return text == null || text.isBlank() ? null : text.strip();
+        return new VehicleDetails(brand.strip(), model.strip(), Texts.blankToNull(trimName), manufactureYear,
+                modelYear, color.strip(), mileageKm, plate, vin, renavam, Money.ofCents(priceCents));
     }
 }

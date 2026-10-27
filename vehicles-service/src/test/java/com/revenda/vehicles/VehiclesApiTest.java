@@ -9,6 +9,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.resttestclient.TestRestTemplate;
 import org.springframework.boot.resttestclient.autoconfigure.AutoConfigureTestRestTemplate;
@@ -69,10 +70,69 @@ abstract class VehiclesApiTest {
         return vehicleBody(Map.of());
     }
 
+    /** Cadastra pelo {@code POST} um veículo do {@link #vehicleBody(Map)} com {@code changes}. */
+    protected Registered register(Map<String, Object> changes) {
+        Map<String, Object> body = vehicleBody(changes);
+        String id = api().asSeller(SELLER).post("/vehicles", body).getBody().get("id").asString();
+        return new Registered(UUID.fromString(id), body);
+    }
+
+    protected Registered register() {
+        return register(Map.of());
+    }
+
+    /** Põe o veículo como reservado por uma compra, como faria a reserva interna. */
+    protected void markReserved(UUID id) {
+        jdbc.sql("UPDATE vehicle SET status = 'RESERVED', purchase_id = :purchase WHERE id = :id")
+                .param("purchase", UUID.randomUUID()).param("id", id).update();
+    }
+
+    /** Põe o veículo como vendido pelo preço dado, ou já entregue, como fariam os comandos da compra. */
+    protected void markSold(UUID id, long soldPriceCents, boolean delivered) {
+        jdbc.sql("""
+                        UPDATE vehicle
+                           SET status = :status, purchase_id = :purchase, sold_price_cents = :soldPriceCents,
+                               sold_at = created_at, delivered_at = CASE WHEN :delivered THEN created_at END
+                         WHERE id = :id""")
+                .param("status", delivered ? "DELIVERED" : "SOLD")
+                .param("purchase", UUID.randomUUID())
+                .param("soldPriceCents", soldPriceCents)
+                .param("delivered", delivered)
+                .param("id", id)
+                .update();
+    }
+
+    protected Map<String, Object> row(UUID id) {
+        return jdbc.sql("SELECT * FROM vehicle WHERE id = :id").param("id", id).query().singleRow();
+    }
+
     /** Os {@code fields} do erro como {@code "campo CÓDIGO"}. */
     protected static List<String> fieldsOf(ResponseEntity<JsonNode> response) {
         List<String> fields = new ArrayList<>();
         response.getBody().get("fields").forEach(f -> fields.add(f.get("field").asString() + " " + f.get("code").asString()));
         return fields;
+    }
+
+    /** Os ids dos {@code items} de uma página, na ordem da resposta. */
+    protected static List<UUID> idsOf(ResponseEntity<JsonNode> response) {
+        List<UUID> ids = new ArrayList<>();
+        response.getBody().get("items").forEach(item -> ids.add(UUID.fromString(item.get("id").asString())));
+        return ids;
+    }
+
+    /** Um veículo cadastrado pelo {@code POST}, com o corpo que o criou. */
+    protected record Registered(UUID id, Map<String, Object> body) {
+
+        String path() {
+            return "/vehicles/" + id;
+        }
+
+        /** O corpo do {@code PUT}: o veículo como foi cadastrado, na versão 0, com o que vier em {@code changes}. */
+        Map<String, Object> edit(Map<String, Object> changes) {
+            Map<String, Object> edit = new HashMap<>(body);
+            edit.put("version", 0);
+            edit.putAll(changes);
+            return edit;
+        }
     }
 }
