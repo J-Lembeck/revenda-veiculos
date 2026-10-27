@@ -76,7 +76,7 @@ A base de teste fica no test-jar do `common` (`com.revenda.common.test`):
 | `LocalStackTestKms` | LocalStack único da suíte, com o KMS |
 | `TestTokens`, `TestTokenConfiguration` | tokens de pessoa (por papel) e de serviço, assinados por uma chave gerada na memória |
 | `ApiDriver` | chama a API em JSON com o token de quem chama e uma `Idempotency-Key` nova em todo `POST` |
-| `SyntheticData` | CPF sorteado com dígito verificador válido e e-mail em `@example.test` — só dado inventado |
+| `SyntheticData` | CPF sorteado com dígito verificador válido, e-mail em `@example.test`, placa, chassi e RENAVAM válidos — só dado inventado |
 | `MovableClock` | relógio que o teste adianta |
 | `ServiceFoundationContract`, `ResourceServerContract` | testes que todo serviço herda: `health`, formato de erro, log mascarado, token |
 | `ServiceArchitectureRules` | regras de arquitetura que todo serviço roda no `<Serviço>ArchitectureTests` (abaixo) |
@@ -139,6 +139,18 @@ curl http://localhost:8081/actuator/health
 
 Resposta esperada: `{"groups":["liveness","readiness"],"status":"UP"}`. Só o `health` fica exposto;
 os demais endpoints do Actuator respondem `404`.
+
+## Rotas prontas
+
+| Serviço | Rota | Quem | O quê |
+|---|---|---|---|
+| `vehicles` | `POST /vehicles` | `SELLER`, `ADMIN` | cadastra um veículo à venda (`Idempotency-Key` obrigatória) |
+
+O cadastro confere marca, modelo, cor, quilometragem, anos (fabricação de 1900 ao ano que vem; modelo
+igual ou no ano seguinte), preço (acima de zero e até R$ 10.000.000,00, em centavos), placa (padrão antigo
+ou Mercosul, sem hífen), chassi (17 caracteres, sem `I`, `O` e `Q`) e RENAVAM (11 dígitos com o
+verificador). Todos os erros voltam numa resposta só, em `fields`. Placa, chassi e RENAVAM não se repetem
+no estoque (`409`). O cadastro grava uma linha de auditoria `VEHICLE_CREATED` com quem cadastrou.
 
 ## Usuários sintéticos
 
