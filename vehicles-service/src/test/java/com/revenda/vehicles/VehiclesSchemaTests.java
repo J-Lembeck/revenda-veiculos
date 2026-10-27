@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.params.provider.Arguments.arguments;
 
 import com.revenda.common.test.PostgresTestDatabase;
+import com.revenda.common.test.SyntheticData;
 import com.revenda.common.time.SqlTime;
 import java.sql.Connection;
 import java.sql.ResultSet;
@@ -15,7 +16,6 @@ import java.time.OffsetDateTime;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -154,7 +154,6 @@ class VehiclesSchemaTests {
     }
 
     private static Map<String, Object> vehicle(Map<String, Object> overrides) {
-        long serial = ThreadLocalRandom.current().nextLong(1_000_000_000L, 10_000_000_000L);
         Map<String, Object> row = new HashMap<>();
         row.put("id", UUID.randomUUID());
         row.put("brand", "Marca Teste");
@@ -163,18 +162,14 @@ class VehiclesSchemaTests {
         row.put("model_year", 2023);
         row.put("color", "Prata");
         row.put("mileage_km", 35_000);
-        row.put("plate", letters(serial / 10_000) + String.format("%04d", serial % 10_000));
-        row.put("vin", "9TESTE" + serial + "0");
-        row.put("renavam", "0" + serial);
+        row.put("plate", SyntheticData.plate());
+        row.put("vin", SyntheticData.vin());
+        row.put("renavam", SyntheticData.renavam());
         row.put("price_cents", 8_990_000L);
         row.put("created_at", NOW);
         row.put("updated_at", NOW);
         row.putAll(overrides);
         return row;
-    }
-
-    private static String letters(long number) {
-        return "" + (char) ('A' + number % 26) + (char) ('A' + number / 26 % 26) + (char) ('A' + number / 676 % 26);
     }
 
     private static String single(Statement statement, String sql) throws SQLException {
