@@ -31,6 +31,7 @@ revenda:
     kms-key-id: ${KMS_CUSTOMER_KEY_ID:alias/customers-data}
   customers:
     require-verified-email: ${CUSTOMERS_REQUIRE_VERIFIED_EMAIL:false}
+    zone: ${CUSTOMERS_ZONE:America/Sao_Paulo}
   openapi:
     title: Cadastro de compradores
     description: >-
