@@ -137,8 +137,10 @@ $env:DB_APP_PASSWORD = $env:VEHICLES_DB_APP_PASSWORD; $env:DB_OWNER_PASSWORD = $
 .\mvnw.cmd -pl vehicles-service spring-boot:run
 ```
 
-O `customers-service` também tem banco: sobe do mesmo jeito, com as senhas das *roles* dele (no
-PowerShell, `$env:DB_APP_PASSWORD = $env:CUSTOMERS_DB_APP_PASSWORD; $env:DB_OWNER_PASSWORD = $env:CUSTOMERS_DB_OWNER_PASSWORD`
+O `customers-service` também tem banco e também fala com a AWS: usa o KMS do LocalStack (a chave
+`alias/customers-data`, padrão de `KMS_CUSTOMER_KEY_ID`) e precisa das mesmas variáveis do SDK do
+`vehicles` — sem elas não sobe. No mesmo terminal, troque só as senhas das *roles* (no PowerShell,
+`$env:DB_APP_PASSWORD = $env:CUSTOMERS_DB_APP_PASSWORD; $env:DB_OWNER_PASSWORD = $env:CUSTOMERS_DB_OWNER_PASSWORD`
 antes do `.\mvnw.cmd -pl customers-service spring-boot:run`):
 
 ```bash
@@ -148,8 +150,24 @@ DB_APP_PASSWORD="$CUSTOMERS_DB_APP_PASSWORD" DB_OWNER_PASSWORD="$CUSTOMERS_DB_OW
 
 Na subida, o Flyway cria ou atualiza as tabelas com a *role* `_owner` e a aplicação passa a usar a
 `_app`, que só lê e grava dados. No `customers`, o dado pessoal fica em colunas cifradas pela aplicação
-(`*_enc`), o CPF tem um *blind index* (HMAC) para a unicidade, e as chaves de dados ficam em `data_key`
-só embrulhadas pelo KMS; toda coluna pessoal leva o comentário `[pessoal]` no banco.
+(`*_enc`), o CPF tem um *blind index* (HMAC) para a unicidade, e toda coluna pessoal leva o comentário
+`[pessoal]` no banco.
+
+As chaves dessa cifra são criadas na primeira subida do `customers`, antes de ele atender: para cada
+finalidade (`FIELD`, a da cifra de campo, e `BLIND_INDEX`, a do índice) sem chave nenhuma, o KMS gera uma
+chave de dados (`GenerateDataKey`) e só a forma embrulhada por ele vai para a `data_key`, na versão 1 e
+ativa; a chave em claro não vai para o banco nem para o log, e cada contêiner a desembrulha uma vez, só em
+memória. O log mostra `Chave de dados FIELD criada na versão 1` (e a do `BLIND_INDEX`); a segunda subida
+não cria nada. Dois contêineres subindo juntos geram uma chave cada, mas o `INSERT … ON CONFLICT DO
+NOTHING` deixa entrar só uma por finalidade — a chave primária e o índice de uma ativa por finalidade
+barram a outra —, e o que perdeu segue com a que ficou. A chamada ao KMS acontece sem transação aberta.
+Se uma finalidade tiver versões mas nenhuma ativa, a subida para com erro: escolher a versão ativa é
+rotação, não primeira subida. Para conferir:
+
+```bash
+docker compose -f infra/docker-compose.yml exec postgres psql -U postgres -d customers \
+  -c "SELECT purpose, version, active, length(encrypted_key) FROM data_key ORDER BY purpose"
+```
 
 ```bash
 curl http://localhost:8081/actuator/health
