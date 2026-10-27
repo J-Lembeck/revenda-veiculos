@@ -147,6 +147,26 @@ curl http://localhost:8081/actuator/health
 Resposta esperada: `{"groups":["liveness","readiness"],"status":"UP"}`. Só o `health` fica exposto;
 os demais endpoints do Actuator respondem `404`.
 
+### 4. Contrato (OpenAPI) e Swagger UI
+
+Cada serviço publica o contrato gerado do código em `/v3/api-docs` e o Swagger UI em
+`/swagger-ui.html` — no estoque, `http://localhost:8081/swagger-ui.html`. Os dois abrem sem token.
+Para chamar uma rota da equipe, clique em **Authorize** e use o login `oidc` (o cliente `revenda-web`
+já vem preenchido; deixe o *client secret* vazio): o Keycloak pede e-mail e senha de um usuário
+sintético (seção "Usuários sintéticos") e devolve o token ao Swagger. Também dá para colar um token em
+`bearer`. Rota interna pede token de serviço, que só se cola.
+
+O contrato é montado em duas partes. O que vale para toda rota sai das regras de acesso do serviço (o
+`SecurityRoutes`), na mesma ordem em que a segurança as aplica: quem pode chamar (escrito em **Acesso**
+na descrição da rota), o login, o cabeçalho `X-Request-Id` e as respostas `401`, `403`, `429` e `500`.
+Toda resposta de erro tem o corpo `ApiError` (`code`, `message`, `requestId`, `fields`). Assim o contrato
+não sai do compasso da segurança. O que é da rota fica no controller: o resumo, a descrição com o caso de
+uso e as regras, cada status com os `code` que ele pode trazer, a `Idempotency-Key` obrigatória no
+cadastro e um exemplo sintético em cada campo. Rota aberta aceita o login, mas não exige: token enviado é
+conferido, e a equipe logada vê o detalhe completo do veículo.
+
+`OPENAPI_ENABLED=false` desliga o contrato e o Swagger UI (na nuvem eles não são publicados).
+
 ## Rotas prontas
 
 | Serviço | Rota | Quem | O quê |
