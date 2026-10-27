@@ -232,12 +232,4 @@ class VehicleEditTests extends VehiclesApiTest {
         return jdbc.sql("SELECT count(*) FROM audit_log WHERE action = 'VEHICLE_UPDATED' AND entity_id = :id")
                 .param("id", id).query(Integer.class).single();
     }
-
-    private static void await(CyclicBarrier barrier) {
-        try {
-            barrier.await();
-        } catch (Exception e) {
-            throw new IllegalStateException(e);
-        }
-    }
 }

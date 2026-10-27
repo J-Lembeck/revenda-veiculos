@@ -31,6 +31,11 @@ public record Vehicle(
         return status == VehicleStatus.AVAILABLE;
     }
 
+    /** Reservado para esta compra: a reserva repetida por ela é sucesso sem efeito. */
+    public boolean isReservedFor(UUID purchase) {
+        return status == VehicleStatus.RESERVED && purchase.equals(purchaseId);
+    }
+
     /**
      * Os dados novos na versão seguinte, sem tocar no status nem na compra (RN-02): só à venda ou reservado, e só a
      * partir da versão que está no estoque.

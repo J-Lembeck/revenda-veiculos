@@ -18,6 +18,7 @@ class VehiclesSecurityConfiguration {
                 Route.forRoles(HttpMethod.PUT, "/vehicles/{id}", Role.SELLER),
                 Route.forRoles(HttpMethod.GET, "/vehicles/sold", Role.SELLER),
                 Route.open(HttpMethod.GET, "/vehicles"),
-                Route.open(HttpMethod.GET, "/vehicles/{id}"));
+                Route.open(HttpMethod.GET, "/vehicles/{id}"),
+                Route.forScope(HttpMethod.POST, "/internal/vehicles/{id}/reservations", "vehicles.reserve"));
     }
 }

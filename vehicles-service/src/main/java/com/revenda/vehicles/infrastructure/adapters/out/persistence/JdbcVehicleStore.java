@@ -14,6 +14,7 @@ import com.revenda.vehicles.domain.ports.out.LoadVehiclePort;
 import com.revenda.vehicles.domain.ports.out.SaveVehiclePort;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -76,6 +77,21 @@ class JdbcVehicleStore implements SaveVehiclePort, LoadVehiclePort {
                 .param("readVersion", edited.version() - 1)
                 .param("now", SqlTime.utc(edited.updatedAt()));
         return refusingDuplicates(() -> withDetails(update, edited.details()).update()) == 1;
+    }
+
+    @Override
+    public Optional<Money> reserveIfAvailable(UUID id, UUID purchaseId, Instant now) {
+        return jdbc.sql("""
+                        UPDATE vehicle
+                           SET status = 'RESERVED', purchase_id = :purchaseId, version = version + 1, updated_at = :now
+                         WHERE id = :id AND status = 'AVAILABLE'
+                        RETURNING price_cents""")
+                .param("id", id)
+                .param("purchaseId", purchaseId)
+                .param("now", SqlTime.utc(now))
+                .query(Long.class)
+                .optional()
+                .map(Money::ofCents);
     }
 
     @Override

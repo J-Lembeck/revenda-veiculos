@@ -71,6 +71,14 @@ class VehicleTest {
                 .extracting("code").isEqualTo("VALIDATION_FAILED");
     }
 
+    @Test
+    void onlyAReservationOfThisPurchaseCountsAsReservedForIt() {
+        assertThat(vehicle(VehicleStatus.RESERVED, 1).isReservedFor(PURCHASE)).isTrue();
+        assertThat(vehicle(VehicleStatus.RESERVED, 1).isReservedFor(UUID.randomUUID())).isFalse();
+        assertThat(vehicle(VehicleStatus.SOLD, 2).isReservedFor(PURCHASE)).isFalse();
+        assertThat(vehicle(VehicleStatus.AVAILABLE, 0).isReservedFor(PURCHASE)).isFalse();
+    }
+
     private static Vehicle vehicle(VehicleStatus status, int version) {
         boolean withPurchase = status != VehicleStatus.AVAILABLE;
         boolean sold = status == VehicleStatus.SOLD || status == VehicleStatus.DELIVERED;
