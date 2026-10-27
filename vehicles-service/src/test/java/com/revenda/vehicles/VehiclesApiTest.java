@@ -5,17 +5,21 @@ import com.revenda.common.test.PostgresTestDatabase;
 import com.revenda.common.test.SyntheticData;
 import com.revenda.common.test.TestTokenConfiguration;
 import com.revenda.common.test.TestTokens;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.resttestclient.TestRestTemplate;
 import org.springframework.boot.resttestclient.autoconfigure.AutoConfigureTestRestTemplate;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.TestPropertySource;
+import tools.jackson.databind.JsonNode;
 
 /** O serviço de pé, com o banco de teste e tokens de teste, chamado pelo HTTP. */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
@@ -63,5 +67,12 @@ abstract class VehiclesApiTest {
 
     protected static Map<String, Object> vehicleBody() {
         return vehicleBody(Map.of());
+    }
+
+    /** Os {@code fields} do erro como {@code "campo CÓDIGO"}. */
+    protected static List<String> fieldsOf(ResponseEntity<JsonNode> response) {
+        List<String> fields = new ArrayList<>();
+        response.getBody().get("fields").forEach(f -> fields.add(f.get("field").asString() + " " + f.get("code").asString()));
+        return fields;
     }
 }

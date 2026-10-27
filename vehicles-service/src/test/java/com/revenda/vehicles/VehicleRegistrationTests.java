@@ -6,9 +6,7 @@ import static org.junit.jupiter.params.provider.Arguments.arguments;
 import com.revenda.common.test.ApiDriver;
 import java.time.Year;
 import java.time.ZoneOffset;
-import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Stream;
@@ -192,12 +190,6 @@ class VehicleRegistrationTests extends VehiclesApiTest {
 
         assertThat(fieldsOf(response)).containsExactlyInAnyOrder(
                 "plate PLATE_INVALID", "vin VIN_INVALID", "priceCents PRICE_INVALID");
-    }
-
-    private static List<String> fieldsOf(ResponseEntity<JsonNode> response) {
-        List<String> fields = new ArrayList<>();
-        response.getBody().get("fields").forEach(f -> fields.add(f.get("field").asString() + " " + f.get("code").asString()));
-        return fields;
     }
 
     private int vehiclesWithPlate(Object plate) {

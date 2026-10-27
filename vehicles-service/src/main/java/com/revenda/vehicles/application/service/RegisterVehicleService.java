@@ -4,7 +4,6 @@ import com.revenda.common.audit.AuditEntry;
 import com.revenda.common.audit.AuditRecorder;
 import com.revenda.common.idempotency.IdempotencyStore;
 import com.revenda.vehicles.domain.model.Vehicle;
-import com.revenda.vehicles.domain.model.VehicleDetails;
 import com.revenda.vehicles.domain.ports.in.RegisterVehicleCommand;
 import com.revenda.vehicles.domain.ports.in.RegisterVehicleUseCase;
 import com.revenda.vehicles.domain.ports.out.SaveVehiclePort;
@@ -30,14 +29,9 @@ public class RegisterVehicleService implements RegisterVehicleUseCase {
             Vehicle vehicle = Vehicle.register(UUID.randomUUID(), command.vehicle(), clock.instant());
             vehicles.insert(vehicle);
             audit.record(AuditEntry.of(VehiclesAuditAction.VEHICLE_CREATED, Vehicle.ENTITY_TYPE, vehicle.id(),
-                            summary(vehicle.details()))
+                            VehicleSnapshot.summary("Veículo cadastrado", vehicle))
                     .withChange(null, VehicleSnapshot.of(vehicle)));
             return vehicle;
         }).result();
-    }
-
-    private static String summary(VehicleDetails details) {
-        return "Veículo cadastrado: " + details.brand() + " " + details.model() + " "
-                + details.manufactureYear() + "/" + details.modelYear();
     }
 }
