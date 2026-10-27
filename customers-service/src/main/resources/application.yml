@@ -27,3 +27,5 @@ revenda:
       scope-prefix: ${OIDC_SCOPE_PREFIX:}
       web-clients: ${OIDC_WEB_CLIENTS:revenda-web}
       service-clients: ${OIDC_SERVICE_CLIENTS:sales-service}
+  crypto:
+    kms-key-id: ${KMS_CUSTOMER_KEY_ID:alias/customers-data}
