@@ -29,8 +29,31 @@ class CustomerApiDocsTests extends CustomersApiTest {
         docs.get("paths").properties().forEach(path -> path.getValue().properties()
                 .forEach(method -> operations.add(method.getKey().toUpperCase() + " " + path.getKey())));
 
-        assertThat(operations).containsExactlyInAnyOrder("POST /customers", "GET /customers/me", "PATCH /customers/me");
+        assertThat(operations).containsExactlyInAnyOrder("POST /customers", "GET /customers/me", "PATCH /customers/me",
+                "GET /customers/{id}", "POST /customers/{id}/cpf-reveal");
         assertThat(docs.at("/info/title").asString()).isEqualTo("Cadastro de compradores");
+    }
+
+    @Test
+    void theStaffSeesTheCustomerMaskedAndOnlyTheAdminRevealsTheCpf() {
+        JsonNode view = operation("/customers/{id}", "get");
+        JsonNode reveal = operation("/customers/{id}/cpf-reveal", "post");
+
+        assertThat(view.get("description").asString()).contains("UC-14", "Papéis: SELLER");
+        assertThat(view.get("responses").propertyNames()).contains("200", "400", "401", "403", "404", "500");
+        assertThat(view.at("/responses/200/content/application~1json/schema/$ref").asString())
+                .endsWith("/StaffCustomerResponse");
+        assertThat(reveal.get("description").asString()).contains("UC-14", "CUSTOMER_CPF_REVEALED", "Papéis: ADMIN")
+                .doesNotContain("SELLER");
+        assertThat(reveal.get("responses").propertyNames()).contains("200", "400", "401", "403", "404", "500");
+        assertThat(reveal.at("/responses/400/description").asString()).contains("REQUIRED", "SIZE_INVALID");
+        assertThat(reveal.get("parameters").valueStream().map(parameter -> parameter.get("name").asString()))
+                .doesNotContain("Idempotency-Key");
+        assertThat(docs.at("/components/schemas/StaffCustomerResponse/properties").propertyNames())
+                .contains("cpfMasked", "emailMasked", "phoneMasked", "city", "state")
+                .doesNotContain("cpf", "email", "phone", "birthDate", "address", "identitySubject");
+        assertThat(docs.at("/components/schemas/CpfRevealRequest/required").valueStream().map(JsonNode::asString))
+                .containsExactly("reason");
     }
 
     @Test

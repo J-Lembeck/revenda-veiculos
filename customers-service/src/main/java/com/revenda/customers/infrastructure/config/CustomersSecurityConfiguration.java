@@ -21,7 +21,9 @@ class CustomersSecurityConfiguration {
                 return List.of(
                         Route.forRoles(HttpMethod.POST, "/customers", Role.CUSTOMER),
                         Route.forRoles(HttpMethod.GET, "/customers/me", Role.CUSTOMER),
-                        Route.forRoles(HttpMethod.PATCH, "/customers/me", Role.CUSTOMER));
+                        Route.forRoles(HttpMethod.PATCH, "/customers/me", Role.CUSTOMER),
+                        Route.forRoles(HttpMethod.GET, "/customers/{id}", Role.SELLER),
+                        Route.forRoles(HttpMethod.POST, "/customers/{id}/cpf-reveal", Role.ADMIN));
             }
 
             @Override

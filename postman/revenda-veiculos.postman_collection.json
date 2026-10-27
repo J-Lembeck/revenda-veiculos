@@ -7652,11 +7652,11 @@
 									"    const formatted = cpf.replace(/(\\d{3})(\\d{3})(\\d{3})(\\d{2})/, '$1.$2.$3-$4');",
 									"    pm.expect(pm.response.text()).to.not.include(cpf).and.to.not.include(formatted);",
 									"});",
-									"pm.test('telefone mascarado', () => {",
+									"pm.test('só o mínimo, mascarado', () => {",
 									"    const customer = pm.response.json();",
-									"    const phone = Object.keys(customer).filter((key) => /phone/i.test(key)).map((key) => customer[key]);",
-									"    pm.expect(phone, 'campo de telefone').to.not.be.empty;",
-									"    phone.forEach((value) => pm.expect(value).to.include('*'));",
+									"    pm.expect(customer).to.have.all.keys('id', 'fullName', 'cpfMasked', 'emailMasked', 'phoneMasked', 'city', 'state', 'status', 'createdAt', 'updatedAt');",
+									"    pm.expect(customer.emailMasked).to.match(/^.\\*\\*\\*@example\\.test$/);",
+									"    pm.expect(customer.phoneMasked).to.match(/^\\(\\d{2}\\) \\*{4,5}-\\d{4}$/);",
 									"});"
 								]
 							}
@@ -7666,7 +7666,7 @@
 						"method": "GET",
 						"header": [],
 						"url": "{{customersUrl}}/customers/{{customerId}}",
-						"description": "**UC-14** · `SELLER`. Deve aparecer: `200` com `cpfMasked` (`***.xxx.xxx-**`), telefone mascarado e nenhum CPF em claro.",
+						"description": "**UC-14** · `SELLER`. O mínimo para atender: nome, CPF, e-mail e telefone mascarados, cidade e UF; sem nascimento nem o resto do endereço. Não grava auditoria (nada sai completo). Deve aparecer: `200` com `cpfMasked` (`***.xxx.xxx-**`) e nenhum CPF em claro.",
 						"auth": {
 							"type": "bearer",
 							"bearer": [
@@ -7680,6 +7680,47 @@
 					},
 					"response": [],
 					"id": "3a0d6356-0670-5573-9ac5-9b36d21a2787"
+				},
+				{
+					"name": "Admin vê o cliente mascarado",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"responde 200\", () => pm.response.to.have.status(200));",
+									"pm.test('CPF mascarado (***.xxx.xxx-**)', () => {",
+									"    const cpf = pm.collectionVariables.get('anaCpf');",
+									"    pm.expect(pm.response.json().cpfMasked).to.eql('***.' + cpf.slice(3, 6) + '.' + cpf.slice(6, 9) + '-**');",
+									"});",
+									"pm.test(\"nenhum CPF em claro na resposta\", () => {",
+									"    const cpf = pm.collectionVariables.get('anaCpf');",
+									"    const formatted = cpf.replace(/(\\d{3})(\\d{3})(\\d{3})(\\d{2})/, '$1.$2.$3-$4');",
+									"    pm.expect(pm.response.text()).to.not.include(cpf).and.to.not.include(formatted);",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": "{{customersUrl}}/customers/{{customerId}}",
+						"description": "**UC-14** · `ADMIN` (tem tudo do `SELLER`). Deve aparecer: `200`, mascarado como para a vendedora.",
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{tokenOtto}}",
+									"type": "string"
+								}
+							]
+						}
+					},
+					"response": [],
+					"id": "171d6f4c-2c00-56bb-90d0-d1fb9e28cfbd"
 				},
 				{
 					"name": "Cliente não usa a rota da equipe → 403",
@@ -7813,6 +7854,11 @@
 									"    const error = pm.response.json();",
 									"    pm.expect(error.code).to.eql('VALIDATION_FAILED');",
 									"    pm.expect(error.fields.map((f) => f.field + ' ' + f.code)).to.include('reason REQUIRED');",
+									"});",
+									"pm.test(\"nenhum CPF em claro na resposta\", () => {",
+									"    const cpf = pm.collectionVariables.get('anaCpf');",
+									"    const formatted = cpf.replace(/(\\d{3})(\\d{3})(\\d{3})(\\d{2})/, '$1.$2.$3-$4');",
+									"    pm.expect(pm.response.text()).to.not.include(cpf).and.to.not.include(formatted);",
 									"});"
 								]
 							}
@@ -7827,7 +7873,7 @@
 							}
 						],
 						"url": "{{customersUrl}}/customers/{{customerId}}/cpf-reveal",
-						"description": "O motivo é obrigatório. Deve aparecer: `400 VALIDATION_FAILED` com `reason` `REQUIRED`.",
+						"description": "O motivo é obrigatório. Deve aparecer: `400 VALIDATION_FAILED` com `reason` `REQUIRED` — e nada é revelado nem auditado.",
 						"auth": {
 							"type": "bearer",
 							"bearer": [
@@ -7852,16 +7898,23 @@
 					"id": "bd8e6b55-4c7e-5037-86ac-1daf8d5e9de6"
 				},
 				{
-					"name": "Admin revela o CPF com motivo",
+					"name": "Admin com motivo curto → 400",
 					"event": [
 						{
 							"listen": "test",
 							"script": {
 								"type": "text/javascript",
 								"exec": [
-									"pm.test('responde 200 com o CPF completo', () => {",
-									"    pm.response.to.have.status(200);",
-									"    pm.expect(String(pm.response.json().cpf).replace(/\\D/g, '')).to.eql(pm.collectionVariables.get('anaCpf'));",
+									"pm.test(\"responde 400 VALIDATION_FAILED com reason SIZE_INVALID\", () => {",
+									"    pm.response.to.have.status(400);",
+									"    const error = pm.response.json();",
+									"    pm.expect(error.code).to.eql('VALIDATION_FAILED');",
+									"    pm.expect(error.fields.map((f) => f.field + ' ' + f.code)).to.include('reason SIZE_INVALID');",
+									"});",
+									"pm.test(\"nenhum CPF em claro na resposta\", () => {",
+									"    const cpf = pm.collectionVariables.get('anaCpf');",
+									"    const formatted = cpf.replace(/(\\d{3})(\\d{3})(\\d{3})(\\d{2})/, '$1.$2.$3-$4');",
+									"    pm.expect(pm.response.text()).to.not.include(cpf).and.to.not.include(formatted);",
 									"});"
 								]
 							}
@@ -7876,7 +7929,57 @@
 							}
 						],
 						"url": "{{customersUrl}}/customers/{{customerId}}/cpf-reveal",
-						"description": "**UC-14** · `ADMIN` (otto.admin). Deve aparecer: `200` com o CPF completo da Ana. A revelação vai para a auditoria com o motivo (`CUSTOMER_CPF_REVEALED`).",
+						"description": "O motivo vai de 10 a 300 caracteres: uma frase, não uma palavra. Deve aparecer: `400 VALIDATION_FAILED` com `reason` `SIZE_INVALID`.",
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{tokenOtto}}",
+									"type": "string"
+								}
+							]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"reason\": \"conferir\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"response": [],
+					"id": "6b7e8c53-2461-59ce-bca0-acf9e1c25871"
+				},
+				{
+					"name": "Admin revela o CPF com motivo",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('responde 200 com o CPF completo, sem cache', () => {",
+									"    pm.response.to.have.status(200);",
+									"    pm.expect(pm.response.json()).to.eql({ cpf: pm.collectionVariables.get('anaCpf') });",
+									"    pm.expect(pm.response.headers.get('Cache-Control')).to.eql('no-store');",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": "{{customersUrl}}/customers/{{customerId}}/cpf-reveal",
+						"description": "**UC-14** · `ADMIN` (otto.admin). Deve aparecer: `200` com o CPF completo da Ana, só dígitos, e `Cache-Control: no-store`. Cada revelação vai para a auditoria com quem pediu e o motivo (`CUSTOMER_CPF_REVEALED`) e soma um na métrica `customers.cpf.reveals`.",
 						"auth": {
 							"type": "bearer",
 							"bearer": [

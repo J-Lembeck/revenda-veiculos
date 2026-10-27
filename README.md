@@ -209,6 +209,8 @@ conferido, e a equipe logada vê o detalhe completo do veículo.
 | `customers` | `POST /customers` | `CUSTOMER` | o comprador cria o próprio cadastro (`Idempotency-Key` obrigatória; 5 por minuto por rede) |
 | `customers` | `GET /customers/me` | `CUSTOMER` | o comprador vê o próprio cadastro, com CPF, e-mail e telefone mascarados |
 | `customers` | `PATCH /customers/me` | `CUSTOMER` | o comprador muda o próprio nome, telefone e endereço |
+| `customers` | `GET /customers/{id}` | `SELLER`, `ADMIN` | a equipe vê o cliente com o mínimo, mascarado |
+| `customers` | `POST /customers/{id}/cpf-reveal` | `ADMIN` | o administrador vê o CPF completo, com motivo, e a revelação é auditada |
 
 O cadastro confere marca, modelo, cor, quilometragem, anos (fabricação de 1900 ao ano que vem; modelo
 igual ou no ano seguinte), preço (acima de zero e até R$ 10.000.000,00, em centavos), placa (padrão antigo
@@ -392,6 +394,30 @@ não grava auditoria: é o titular vendo o próprio dado, com CPF, e-mail e tele
 - Grava a auditoria `CUSTOMER_UPDATED` com a versão antes e depois e **os nomes** dos campos que mudaram
   (`"changedFields": ["PHONE", "ADDRESS"]`), nunca o valor. Sem mudança nenhuma (`{}` ou os mesmos valores),
   responde `200` com o cadastro e não grava nada. Não cria nada, então não pede `Idempotency-Key`.
+
+**A equipe e o CPF completo.** `GET /customers/{id}` (vendedor ou administrador) mostra só o que a equipe
+precisa para atender: nome, CPF, e-mail e telefone mascarados, cidade e UF — sem data de nascimento, rua,
+número nem CEP. Na retirada, o CPF do documento é conferido pelo *blind index*, sem ninguém ver o número. O
+comprador não usa essa rota (`403`, mesmo para o próprio id); a dele é a `/customers/me`. A consulta não grava
+auditoria, porque nada sai completo.
+
+Só o administrador vê o CPF completo, e precisa dizer por quê:
+
+```json
+// POST /customers/{id}/cpf-reveal
+{ "reason": "Conferência do documento do comprador na retirada" }
+// 200, Cache-Control: no-store
+{ "cpf": "52998224725" }
+```
+
+- O motivo é obrigatório, de 10 a 300 caracteres (`REQUIRED`, `SIZE_INVALID`). Sem ele, nada é revelado.
+- Cada revelação grava a auditoria `CUSTOMER_CPF_REVEALED` com quem pediu e o motivo — se alguém escrever um
+  CPF no motivo, ele é gravado mascarado.
+- Cada revelação também soma um na métrica `customers.cpf.reveals`, sem rótulo nenhum. Na nuvem, um alarme do
+  CloudWatch sobre ela avisa quando o volume foge do normal (conta de administrador tomada, por exemplo), e a
+  auditoria mostra quem revelou.
+- A resposta não fica em cache (`no-store`), e a rota não pede `Idempotency-Key`: não cria nada, e guardar a
+  resposta guardaria o CPF.
 
 ## Usuários sintéticos
 
