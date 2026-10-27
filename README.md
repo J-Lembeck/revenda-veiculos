@@ -207,6 +207,8 @@ conferido, e a equipe logada vê o detalhe completo do veículo.
 | `vehicles` | `GET /vehicles/sold` | `SELLER`, `ADMIN` | vendidos e entregues, do menor para o maior preço de venda |
 | `vehicles` | `POST /internal/vehicles/{id}/reservations` | serviço com *scope* `vehicles.reserve` | reserva o veículo para uma compra e devolve o preço do momento |
 | `customers` | `POST /customers` | `CUSTOMER` | o comprador cria o próprio cadastro (`Idempotency-Key` obrigatória; 5 por minuto por rede) |
+| `customers` | `GET /customers/me` | `CUSTOMER` | o comprador vê o próprio cadastro, com CPF, e-mail e telefone mascarados |
+| `customers` | `PATCH /customers/me` | `CUSTOMER` | o comprador muda o próprio nome, telefone e endereço |
 
 O cadastro confere marca, modelo, cor, quilometragem, anos (fabricação de 1900 ao ano que vem; modelo
 igual ou no ano seguinte), preço (acima de zero e até R$ 10.000.000,00, em centavos), placa (padrão antigo
@@ -364,6 +366,32 @@ recusado sempre. Para ver a conferência funcionando no local:
 4. Entre de novo, para o token novo trazer `email_verified: true`, e repita o `POST`: `201`.
 
 Os usuários sintéticos do `realm.json` já têm o e-mail verificado e passam com a conferência ligada ou não.
+
+**Ver e editar o próprio cadastro.** `GET /customers/me` devolve o cadastro da conta do token, no mesmo
+formato da resposta do cadastro; cada conta só enxerga o seu, e a conta sem cadastro recebe `404`. A leitura
+não grava auditoria: é o titular vendo o próprio dado, com CPF, e-mail e telefone mascarados.
+
+`PATCH /customers/me` muda só o que vem no corpo — nome, telefone e endereço:
+
+```json
+{ "phone": "+5511988887777",
+  "address": { "zipCode": "04538133", "street": "Avenida dos Testes", "number": "2000", "complement": "sala 5",
+               "district": "Itaim", "city": "São Paulo", "state": "SP" } }
+```
+
+- Campo ausente ou `null` fica como está; campo presente em branco é `REQUIRED`. O endereço vem inteiro, com
+  as regras do cadastro (o complemento que não vier fica vazio). Os erros voltam juntos em `fields`, com os
+  mesmos códigos do cadastro, e nada muda.
+- CPF e data de nascimento não mudam pelo autoatendimento: `cpf`, `birthDate` ou `email` no corpo respondem
+  `400` com o campo em `NOT_EDITABLE`.
+- O e-mail acompanha o da conta: se o token traz um e-mail diferente do gravado (verificado, com
+  `CUSTOMERS_REQUIRE_VERIFIED_EMAIL` ligado), a edição grava o novo. Token sem e-mail mantém o gravado.
+- A edição trava a linha do cadastro (`SELECT … FOR UPDATE`) e o `UPDATE` ainda confere a versão travada:
+  duas edições ao mesmo tempo entram uma depois da outra, e nenhuma se perde. Só as colunas que mudaram são
+  cifradas de novo; a `version` sobe e o `updated_at` muda.
+- Grava a auditoria `CUSTOMER_UPDATED` com a versão antes e depois e **os nomes** dos campos que mudaram
+  (`"changedFields": ["PHONE", "ADDRESS"]`), nunca o valor. Sem mudança nenhuma (`{}` ou os mesmos valores),
+  responde `200` com o cadastro e não grava nada. Não cria nada, então não pede `Idempotency-Key`.
 
 ## Usuários sintéticos
 

@@ -42,7 +42,8 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     static final String BODY_UNREADABLE_MESSAGE = "O corpo da requisição não é um JSON válido.";
 
     private static final Map<String, String> FIELD_CODES = Stream.of(
-            Map.entry("REQUIRED", List.of("NotNull", "NotBlank", "NotEmpty")),
+            Map.entry("REQUIRED", List.of("NotNull", "NotBlank", "NotEmpty", "NullOrNotBlank")),
+            Map.entry("NOT_EDITABLE", List.of("Null")),
             Map.entry("SIZE_INVALID", List.of("Size", "Length")),
             Map.entry("OUT_OF_RANGE", List.of("Min", "Max", "DecimalMin", "DecimalMax", "Positive", "PositiveOrZero",
                     "Negative", "NegativeOrZero", "Range", "Digits")),

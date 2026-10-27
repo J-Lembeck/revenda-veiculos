@@ -29,8 +29,37 @@ class CustomerApiDocsTests extends CustomersApiTest {
         docs.get("paths").properties().forEach(path -> path.getValue().properties()
                 .forEach(method -> operations.add(method.getKey().toUpperCase() + " " + path.getKey())));
 
-        assertThat(operations).containsExactlyInAnyOrder("POST /customers");
+        assertThat(operations).containsExactlyInAnyOrder("POST /customers", "GET /customers/me", "PATCH /customers/me");
         assertThat(docs.at("/info/title").asString()).isEqualTo("Cadastro de compradores");
+    }
+
+    @Test
+    void theOwnRecordIsSeenAndEditedOnlyByCustomersWithoutIdempotencyKey() {
+        JsonNode view = operation("/customers/me", "get");
+        JsonNode edit = operation("/customers/me", "patch");
+
+        for (JsonNode own : List.of(view, edit)) {
+            assertThat(own.get("description").asString()).contains("UC-07", "Papéis: CUSTOMER");
+            assertThat(own.get("security").toString()).isEqualTo("[{\"oidc\":[]},{\"bearer\":[]}]");
+            assertThat(own.at("/responses/404/description").asString()).contains("NOT_FOUND");
+            assertThat(own.at("/responses/200/content/application~1json/schema/$ref").asString())
+                    .endsWith("/CustomerResponse");
+            assertThat(own.get("parameters").valueStream().map(parameter -> parameter.get("name").asString()))
+                    .doesNotContain("Idempotency-Key");
+        }
+        assertThat(view.get("responses").propertyNames()).contains("200", "401", "403", "404", "500")
+                .doesNotContain("400", "429");
+        assertThat(edit.get("responses").propertyNames()).contains("200", "400", "401", "403", "404", "500")
+                .doesNotContain("429");
+        assertThat(edit.at("/responses/400/description").asString()).contains("NOT_EDITABLE", "REQUIRED");
+    }
+
+    @Test
+    void theEditTakesOnlyNamePhoneAndAddressAllOptional() {
+        JsonNode changes = docs.at("/components/schemas/CustomerChangesRequest");
+
+        assertThat(changes.get("properties").propertyNames()).containsExactlyInAnyOrder("fullName", "phone", "address");
+        assertThat(changes.get("required")).isNull();
     }
 
     @Test

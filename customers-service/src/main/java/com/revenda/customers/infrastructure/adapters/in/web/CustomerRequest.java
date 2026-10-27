@@ -22,9 +22,10 @@ record CustomerRequest(
                 example = "1990-05-17")
         @NotNull LocalDate birthDate,
         @Schema(description = "+55, o DDD e o número, sem espaços", example = "+5511999990000")
-        @NotBlank @Pattern(regexp = Phone.FORMAT, message = "Use +55, o DDD e o número, só com dígitos: +5511999990000.")
-        String phone,
+        @NotBlank @Pattern(regexp = Phone.FORMAT, message = PHONE_FORMAT_MESSAGE) String phone,
         @Valid @NotNull AddressBody address) {
+
+    static final String PHONE_FORMAT_MESSAGE = "Use +55, o DDD e o número, só com dígitos: +5511999990000.";
 
     RegisterCustomerCommand toCommand(String identitySubject, String email, boolean emailVerified) {
         return new RegisterCustomerCommand(identitySubject, email, emailVerified, fullName, cpf.strip(), birthDate, phone,

@@ -5,11 +5,13 @@ import com.revenda.common.error.ErrorCode;
 import com.revenda.common.error.ErrorKind;
 import com.revenda.common.security.Route;
 import com.revenda.common.security.SecurityRoutes;
+import com.revenda.common.validation.NullOrNotBlank;
 import jakarta.servlet.Filter;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Null;
 import jakarta.validation.constraints.Positive;
 import java.time.LocalDate;
 import java.util.List;
@@ -20,6 +22,7 @@ import org.springframework.boot.jdbc.autoconfigure.DataSourceAutoConfiguration;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -45,6 +48,9 @@ class ErrorProbeApplication {
     record VehicleRequest(@NotBlank String brand, @Positive long priceCents, @Min(1900) int year, LocalDate soldOn) {
     }
 
+    record VehicleChanges(@NullOrNotBlank String brand, @Null(message = "A placa não muda por aqui.") Object plate) {
+    }
+
     @RestController
     @RequestMapping("/probe")
     static class ProbeController {
@@ -66,6 +72,11 @@ class ErrorProbeApplication {
 
         @PostMapping("/vehicles")
         VehicleRequest create(@Valid @RequestBody VehicleRequest body) {
+            return body;
+        }
+
+        @PatchMapping("/vehicles/{id}")
+        VehicleChanges change(@PathVariable long id, @Valid @RequestBody VehicleChanges body) {
             return body;
         }
 

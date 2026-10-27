@@ -18,7 +18,10 @@ class CustomersSecurityConfiguration {
         return new SecurityRoutes() {
             @Override
             public List<Route> routes() {
-                return List.of(Route.forRoles(HttpMethod.POST, "/customers", Role.CUSTOMER));
+                return List.of(
+                        Route.forRoles(HttpMethod.POST, "/customers", Role.CUSTOMER),
+                        Route.forRoles(HttpMethod.GET, "/customers/me", Role.CUSTOMER),
+                        Route.forRoles(HttpMethod.PATCH, "/customers/me", Role.CUSTOMER));
             }
 
             @Override

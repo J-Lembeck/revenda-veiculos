@@ -9,7 +9,14 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
+import java.util.concurrent.Callable;
+import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.resttestclient.TestRestTemplate;
 import org.springframework.boot.resttestclient.autoconfigure.AutoConfigureTestRestTemplate;
@@ -35,6 +42,7 @@ import tools.jackson.databind.JsonNode;
 abstract class CustomersApiTest {
 
     protected static final String CUSTOMERS = "/customers";
+    protected static final String ME = "/customers/me";
 
     @Autowired
     private TestRestTemplate rest;
@@ -118,11 +126,47 @@ abstract class CustomersApiTest {
         return jdbc.sql("SELECT count(*) FROM audit_log").query(Integer.class).single();
     }
 
+    /** A linha crua do cadastro, como o banco guarda. */
+    protected Map<String, Object> rowOf(UUID id) {
+        return jdbc.sql("SELECT * FROM customer WHERE id = :id").param("id", id).query().singleRow();
+    }
+
+    /** As colunas que mudaram de uma linha crua para a outra, comparando os bytes das cifradas. */
+    protected static List<String> changedColumns(Map<String, Object> before, Map<String, Object> after) {
+        return before.keySet().stream()
+                .filter(column -> !Objects.deepEquals(before.get(column), after.get(column)))
+                .toList();
+    }
+
     /** Os {@code fields} do erro como {@code "campo CÓDIGO"}. */
     protected static List<String> fieldsOf(ResponseEntity<JsonNode> response) {
         List<String> fields = new ArrayList<>();
         response.getBody().get("fields").forEach(f -> fields.add(f.get("field").asString() + " " + f.get("code").asString()));
         return fields;
+    }
+
+    /** Faz as chamadas em threads que largam juntas e devolve as respostas na ordem das chamadas. */
+    @SafeVarargs
+    protected static List<ResponseEntity<JsonNode>> atOnce(Callable<ResponseEntity<JsonNode>>... calls)
+            throws Exception {
+        CyclicBarrier start = new CyclicBarrier(calls.length);
+        ExecutorService pool = Executors.newFixedThreadPool(calls.length);
+        try {
+            List<Future<ResponseEntity<JsonNode>>> futures = new ArrayList<>();
+            for (Callable<ResponseEntity<JsonNode>> call : calls) {
+                futures.add(pool.submit(() -> {
+                    start.await(10, TimeUnit.SECONDS);
+                    return call.call();
+                }));
+            }
+            List<ResponseEntity<JsonNode>> answers = new ArrayList<>();
+            for (Future<ResponseEntity<JsonNode>> future : futures) {
+                answers.add(future.get(30, TimeUnit.SECONDS));
+            }
+            return answers;
+        } finally {
+            pool.shutdownNow();
+        }
     }
 
     /** {@code ***.982.247-**}, como a resposta mostra o CPF. */

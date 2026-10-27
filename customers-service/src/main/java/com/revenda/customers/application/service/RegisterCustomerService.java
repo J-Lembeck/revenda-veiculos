@@ -35,7 +35,8 @@ public class RegisterCustomerService implements RegisterCustomerUseCase {
     @Override
     @Transactional
     public Customer register(RegisterCustomerCommand command) {
-        EmailAddress email = accountEmail(command);
+        EmailAddress email = AccountEmail.accepted(command.email(), command.emailVerified(), properties)
+                .orElseThrow(() -> BusinessException.of(CustomersError.EMAIL_NOT_VERIFIED));
         Instant now = clock.instant();
         CustomerDetails details = CustomerDetails.of(command.fullName(), command.cpf(), command.birthDate(),
                 command.phone(), command.address(), LocalDate.ofInstant(now, ZoneOffset.UTC));
@@ -51,14 +52,5 @@ public class RegisterCustomerService implements RegisterCustomerUseCase {
             return new RegisteredCustomer(customer.id());
         }).result().id();
         return customers.findActive(id).orElseThrow(BusinessException::notFound);
-    }
-
-    private EmailAddress accountEmail(RegisterCustomerCommand command) {
-        boolean refused = !EmailAddress.isUsable(command.email())
-                || properties.requireVerifiedEmail() && !command.emailVerified();
-        if (refused) {
-            throw BusinessException.of(CustomersError.EMAIL_NOT_VERIFIED);
-        }
-        return new EmailAddress(command.email());
     }
 }
