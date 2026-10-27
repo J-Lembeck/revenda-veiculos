@@ -109,10 +109,29 @@ Spring, e nenhuma classe que conheça um serviço.
 
 ### 3. Rodar um serviço
 
+O `install` vem uma vez antes do primeiro `spring-boot:run` (põe o `common` no repositório local do
+Maven). As variáveis dos serviços têm o valor local como padrão, **menos as senhas**: o serviço com banco
+recebe as das *roles* do `infra/.env` — `DB_APP_PASSWORD` (aplicação, *role* `<serviço>_app`) e
+`DB_OWNER_PASSWORD` (migrations, *role* `<serviço>_owner`). Com o ambiente local de pé:
+
 ```bash
 ./mvnw -B install -DskipTests
-./mvnw -pl vehicles-service spring-boot:run
+set -a; . infra/.env; set +a
+DB_APP_PASSWORD="$VEHICLES_DB_APP_PASSWORD" DB_OWNER_PASSWORD="$VEHICLES_DB_OWNER_PASSWORD" \
+  ./mvnw -pl vehicles-service spring-boot:run
 ```
+
+No PowerShell:
+
+```powershell
+.\mvnw.cmd -B install -DskipTests
+Get-Content infra/.env | Where-Object { $_ -match '^[A-Z_]+=' } | ForEach-Object { $n, $v = $_ -split '=', 2; Set-Item "env:$n" $v }
+$env:DB_APP_PASSWORD = $env:VEHICLES_DB_APP_PASSWORD; $env:DB_OWNER_PASSWORD = $env:VEHICLES_DB_OWNER_PASSWORD
+.\mvnw.cmd -pl vehicles-service spring-boot:run
+```
+
+Na subida, o Flyway cria ou atualiza as tabelas com a *role* `_owner` e a aplicação passa a usar a
+`_app`, que só lê e grava dados.
 
 ```bash
 curl http://localhost:8081/actuator/health
@@ -159,7 +178,8 @@ caso de uso, o papel e o que deve aparecer, e testes do contrato:
 ### Antes de começar
 
 1. Use o **Postman desktop**: o Postman na web não alcança `localhost`.
-2. Suba o ambiente local e os quatro serviços (seções acima), cada um num terminal:
+2. Suba o ambiente local e os quatro serviços (seções acima), cada um num terminal — o serviço com banco
+   com as senhas do `infra/.env`, como na seção "Rodar um serviço":
 
    ```bash
    ./mvnw -B install -DskipTests
