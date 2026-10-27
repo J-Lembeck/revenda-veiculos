@@ -44,6 +44,7 @@ import org.springframework.security.web.servlet.util.matcher.PathPatternRequestM
 public class ResourceServerAutoConfiguration {
 
     private static final String[] HEALTH = {"/actuator/health", "/actuator/health/**"};
+    private static final String[] API_DOCS = {"/v3/api-docs", "/v3/api-docs/**", "/swagger-ui.html", "/swagger-ui/**"};
     private static final String INTERNAL = "/internal/**";
 
     @Bean
@@ -94,6 +95,7 @@ public class ResourceServerAutoConfiguration {
                 .authorizeHttpRequests(auth -> {
                     auth.dispatcherTypeMatchers(DispatcherType.ERROR).permitAll();
                     auth.requestMatchers(HttpMethod.GET, HEALTH).permitAll();
+                    auth.requestMatchers(HttpMethod.GET, API_DOCS).permitAll();
                     byInternal.get(true).forEach(route -> authorize(auth, route));
                     auth.requestMatchers(INTERNAL).denyAll();
                     byInternal.get(false).forEach(route -> authorize(auth, route));

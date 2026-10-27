@@ -30,3 +30,22 @@ revenda:
   vehicle-commands:
     enabled: ${VEHICLE_COMMANDS_ENABLED:true}
     queue-url: ${VEHICLE_COMMANDS_QUEUE_URL:http://localhost:4566/000000000000/vehicle-commands.fifo}
+  openapi:
+    title: Estoque de veículos
+    description: >-
+      Cadastro, edição, vitrine e vendidos do estoque, e a reserva que a compra pede. Dinheiro sempre em centavos
+      inteiros (`priceCents`), instantes em ISO-8601 UTC, erros no formato `ApiError` com `code` estável.
+    authorization-url: ${OIDC_AUTHORIZATION_URI:http://localhost:8180/realms/revenda/protocol/openid-connect/auth}
+    token-url: ${OIDC_TOKEN_URI:http://localhost:8180/realms/revenda/protocol/openid-connect/token}
+
+springdoc:
+  default-produces-media-type: application/json
+  override-with-generic-response: false
+  api-docs:
+    enabled: ${OPENAPI_ENABLED:true}
+  swagger-ui:
+    enabled: ${OPENAPI_ENABLED:true}
+    oauth:
+      client-id: ${OIDC_SWAGGER_CLIENT_ID:revenda-web}
+      use-pkce-with-authorization-code-grant: true
+      scopes: openid
