@@ -24,4 +24,11 @@ record VehicleSnapshot(
                 details.modelYear(), details.color(), details.mileageKm(), details.plate(), details.vin(),
                 details.renavam(), details.price().toCents(), vehicle.status().name(), vehicle.version());
     }
+
+    /** O resumo da auditoria: o fato e o veículo por marca, modelo e anos. */
+    static String summary(String fact, Vehicle vehicle) {
+        VehicleDetails details = vehicle.details();
+        return fact + ": " + details.brand() + " " + details.model() + " "
+                + details.manufactureYear() + "/" + details.modelYear();
+    }
 }

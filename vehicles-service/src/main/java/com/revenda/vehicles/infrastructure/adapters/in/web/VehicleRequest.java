@@ -17,7 +17,12 @@ record VehicleRequest(
         @NotBlank String plate,
         @NotBlank String vin,
         @NotBlank String renavam,
-        @NotNull Long priceCents) {
+        @NotNull Long priceCents,
+        @NotNull(groups = Edit.class) Integer version) {
+
+    /** As regras que só valem no {@code PUT}: a edição traz a {@code version} lida. */
+    interface Edit {
+    }
 
     VehicleDetails toDetails() {
         return new VehicleDetails(brand.strip(), model.strip(), blankToNull(trimName), manufactureYear, modelYear,

@@ -145,12 +145,21 @@ os demais endpoints do Actuator respondem `404`.
 | Serviço | Rota | Quem | O quê |
 |---|---|---|---|
 | `vehicles` | `POST /vehicles` | `SELLER`, `ADMIN` | cadastra um veículo à venda (`Idempotency-Key` obrigatória) |
+| `vehicles` | `PUT /vehicles/{id}` | `SELLER`, `ADMIN` | edita um veículo à venda ou reservado, com a `version` lida |
 
 O cadastro confere marca, modelo, cor, quilometragem, anos (fabricação de 1900 ao ano que vem; modelo
 igual ou no ano seguinte), preço (acima de zero e até R$ 10.000.000,00, em centavos), placa (padrão antigo
 ou Mercosul, sem hífen), chassi (17 caracteres, sem `I`, `O` e `Q`) e RENAVAM (11 dígitos com o
 verificador). Todos os erros voltam numa resposta só, em `fields`. Placa, chassi e RENAVAM não se repetem
 no estoque (`409`). O cadastro grava uma linha de auditoria `VEHICLE_CREATED` com quem cadastrou.
+
+A edição manda o veículo inteiro, com as mesmas regras do cadastro, mais a `version` que a tela leu. O
+`UPDATE` só grava se o estoque ainda está nessa versão e o veículo segue à venda ou reservado
+(`WHERE id = … AND version = … AND status IN ('AVAILABLE', 'RESERVED')`): quem editou antes vence, e o
+outro recebe `409 VERSION_CONFLICT` — nunca há "ler e depois gravar" sem conferência. Veículo vendido ou
+entregue não se edita (`409 VEHICLE_NOT_EDITABLE`). A edição não mexe no status nem na compra: mudar o
+preço de um veículo reservado não muda o valor de quem o reservou, que foi fixado na reserva. A resposta
+traz a `version` nova, e a auditoria `VEHICLE_UPDATED` guarda o veículo antes e depois.
 
 ## Usuários sintéticos
 

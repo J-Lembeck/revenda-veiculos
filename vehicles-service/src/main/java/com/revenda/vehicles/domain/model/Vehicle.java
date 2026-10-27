@@ -1,5 +1,6 @@
 package com.revenda.vehicles.domain.model;
 
+import com.revenda.common.error.BusinessException;
 import com.revenda.common.money.Money;
 import java.time.Instant;
 import java.time.ZoneOffset;
@@ -23,5 +24,21 @@ public record Vehicle(
     public static Vehicle register(UUID id, VehicleDetails details, Instant now) {
         details.requireValid(now.atZone(ZoneOffset.UTC).getYear());
         return new Vehicle(id, details, VehicleStatus.AVAILABLE, null, null, null, null, 0, now, now);
+    }
+
+    /**
+     * Os dados novos na versão seguinte, sem tocar no status nem na compra (RN-02): só à venda ou reservado, e só a
+     * partir da versão que está no estoque.
+     */
+    public Vehicle edit(VehicleDetails newDetails, int readVersion, Instant now) {
+        newDetails.requireValid(now.atZone(ZoneOffset.UTC).getYear());
+        if (status != VehicleStatus.AVAILABLE && status != VehicleStatus.RESERVED) {
+            throw BusinessException.of(VehiclesError.VEHICLE_NOT_EDITABLE);
+        }
+        if (readVersion != version) {
+            throw BusinessException.of(VehiclesError.VERSION_CONFLICT);
+        }
+        return new Vehicle(id, newDetails, status, purchaseId, soldPrice, soldAt, deliveredAt, version + 1, createdAt,
+                now);
     }
 }
