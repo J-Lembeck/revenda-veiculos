@@ -2711,7 +2711,19 @@
 									"    const cpf = pm.collectionVariables.get('anaCpf');",
 									"    pm.expect(pm.response.json().cpfMasked).to.eql('***.' + cpf.slice(3, 6) + '.' + cpf.slice(6, 9) + '-**');",
 									"});",
-									"pm.test('endereço novo', () => pm.expect(pm.response.json().address.street).to.eql('Avenida dos Testes'));"
+									"pm.test(\"nenhum CPF em claro na resposta\", () => {",
+									"    const cpf = pm.collectionVariables.get('anaCpf');",
+									"    const formatted = cpf.replace(/(\\d{3})(\\d{3})(\\d{3})(\\d{2})/, '$1.$2.$3-$4');",
+									"    pm.expect(pm.response.text()).to.not.include(cpf).and.to.not.include(formatted);",
+									"});",
+									"pm.test('telefone e endereço novos, nome de antes', () => {",
+									"    const customer = pm.response.json();",
+									"    pm.expect(customer.phoneMasked).to.eql('(11) *****-7777');",
+									"    pm.expect(customer.address.street).to.eql('Avenida dos Testes');",
+									"    pm.expect(customer.address.zipCode).to.eql('04538133');",
+									"    pm.expect(customer.fullName).to.eql('Ana Ribeiro');",
+									"    pm.expect(customer).to.not.have.any.keys('cpf', 'email', 'phone');",
+									"});"
 								]
 							}
 						}
@@ -2725,7 +2737,7 @@
 							}
 						],
 						"url": "{{customersUrl}}/customers/me",
-						"description": "**UC-07** · `CUSTOMER`. Nome, telefone e endereço mudam; CPF e nascimento não (RN-07). Deve aparecer: `200` com o endereço novo e o CPF ainda mascarado.",
+						"description": "**UC-07** · `CUSTOMER`. Só o que vem no corpo muda — nome, telefone e endereço (RN-07); o endereço vem inteiro. Sem `Idempotency-Key`: não cria nada. Deve aparecer: `200` com o telefone `(11) *****-7777`, o endereço novo, o nome de antes e o CPF ainda mascarado. A auditoria `CUSTOMER_UPDATED` guarda só os nomes dos campos que mudaram; numa execução seguinte nada muda e nada é gravado (também `200`).",
 						"auth": {
 							"type": "bearer",
 							"bearer": [
@@ -2748,6 +2760,114 @@
 					},
 					"response": [],
 					"id": "68f7b128-a5fe-5db3-aab9-c43605ca3e5d"
+				},
+				{
+					"name": "CPF no PATCH → 400 NOT_EDITABLE",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"responde 400 VALIDATION_FAILED com cpf NOT_EDITABLE\", () => {",
+									"    pm.response.to.have.status(400);",
+									"    const error = pm.response.json();",
+									"    pm.expect(error.code).to.eql('VALIDATION_FAILED');",
+									"    pm.expect(error.fields.map((f) => f.field + ' ' + f.code)).to.include('cpf NOT_EDITABLE');",
+									"});",
+									"pm.test('birthDate também NOT_EDITABLE', () => pm.expect(pm.response.json().fields.map((f) => f.field + ' ' + f.code)).to.include('birthDate NOT_EDITABLE'));",
+									"pm.test(\"nenhum CPF em claro na resposta\", () => {",
+									"    const cpf = pm.collectionVariables.get('anaCpf');",
+									"    const formatted = cpf.replace(/(\\d{3})(\\d{3})(\\d{3})(\\d{2})/, '$1.$2.$3-$4');",
+									"    pm.expect(pm.response.text()).to.not.include(cpf).and.to.not.include(formatted);",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": "{{customersUrl}}/customers/me",
+						"description": "RN-07: CPF e data de nascimento não mudam pelo autoatendimento (só o `ADMIN` corrige); o e-mail é o da conta. Deve aparecer: `400 VALIDATION_FAILED` com `cpf` e `birthDate` em `NOT_EDITABLE` — e nada muda. A resposta não repete o CPF enviado.",
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{tokenAna}}",
+									"type": "string"
+								}
+							]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"cpf\": \"{{anaCpf}}\",\n  \"birthDate\": \"1991-01-01\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"response": [],
+					"id": "a9a8a896-a4d9-5956-b702-f263c885db76"
+				},
+				{
+					"name": "Endereço pela metade → 400",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"responde 400 VALIDATION_FAILED com address.street REQUIRED\", () => {",
+									"    pm.response.to.have.status(400);",
+									"    const error = pm.response.json();",
+									"    pm.expect(error.code).to.eql('VALIDATION_FAILED');",
+									"    pm.expect(error.fields.map((f) => f.field + ' ' + f.code)).to.include('address.street REQUIRED');",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": "{{customersUrl}}/customers/me",
+						"description": "O endereço, se vem, vem inteiro e é conferido com as regras do cadastro. Deve aparecer: `400 VALIDATION_FAILED` com `address.street` `REQUIRED`, entre outros — e nada muda.",
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{tokenAna}}",
+									"type": "string"
+								}
+							]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"address\": {\n    \"zipCode\": \"04538133\"\n  }\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"response": [],
+					"id": "afbcc949-3af1-54c2-a997-3f089a825503"
 				},
 				{
 					"name": "Duda cria o cadastro",
@@ -3159,7 +3279,7 @@
 						"method": "GET",
 						"header": [],
 						"url": "{{customersUrl}}/customers/me",
-						"description": "Deve aparecer: `404 NOT_FOUND`.",
+						"description": "**UC-07** · cada conta só enxerga o próprio cadastro, e o Bruno não tem um. Deve aparecer: `404 NOT_FOUND`.",
 						"auth": {
 							"type": "bearer",
 							"bearer": [
@@ -3173,6 +3293,90 @@
 					},
 					"response": [],
 					"id": "e9e8135c-9f76-5182-a227-58ff269157c5"
+				},
+				{
+					"name": "Bruno não tem cadastro para editar → 404",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"responde 404 NOT_FOUND\", () => {",
+									"    pm.response.to.have.status(404);",
+									"    pm.expect(pm.response.json().code).to.eql('NOT_FOUND');",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": "{{customersUrl}}/customers/me",
+						"description": "Deve aparecer: `404 NOT_FOUND` — e nada é criado.",
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{tokenBruno}}",
+									"type": "string"
+								}
+							]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"phone\": \"+5511988887777\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"response": [],
+					"id": "b8fdea8c-f73e-5568-955a-47bb3a83b341"
+				},
+				{
+					"name": "Vendedora não usa o /customers/me → 403",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"responde 403 FORBIDDEN\", () => {",
+									"    pm.response.to.have.status(403);",
+									"    pm.expect(pm.response.json().code).to.eql('FORBIDDEN');",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": "{{customersUrl}}/customers/me",
+						"description": "O próprio cadastro é só do comprador; a equipe vê o cliente mascarado por `GET /customers/{id}` (UC-14). Deve aparecer: `403 FORBIDDEN`.",
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{tokenVera}}",
+									"type": "string"
+								}
+							]
+						}
+					},
+					"response": [],
+					"id": "c318cd7d-edd0-5a44-a909-d24177a3b104"
 				},
 				{
 					"name": "Vendedora não cria cadastro de comprador → 403",

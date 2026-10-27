@@ -9,6 +9,9 @@ public interface LoadCustomerPort {
     /** O cadastro ativo com esse id, já decifrado. */
     Optional<Customer> findActive(UUID id);
 
+    /** O cadastro ativo da conta, já decifrado. */
+    Optional<Customer> findActiveFor(String identitySubject);
+
     /** Se a conta já tem cadastro ativo. */
     boolean existsActiveFor(String identitySubject);
 }

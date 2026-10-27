@@ -71,6 +71,28 @@ class WebErrorHandlingTests {
     }
 
     @Test
+    void aPartialEditRefusesABlankFieldAsRequiredAndAFieldThatDoesNotChangeAsNotEditable() {
+        String body = """
+                {"brand": " ", "plate": "BRA2E19"}""";
+
+        ResponseEntity<ApiError> response = rest.exchange("/probe/vehicles/7", HttpMethod.PATCH,
+                new HttpEntity<>(body, jsonHeaders()), ApiError.class);
+
+        assertError(response, HttpStatus.BAD_REQUEST, "VALIDATION_FAILED");
+        assertThat(response.getBody().fields()).containsExactlyInAnyOrder(
+                new FieldViolation("brand", "REQUIRED", "não deve estar em branco"),
+                new FieldViolation("plate", "NOT_EDITABLE", "A placa não muda por aqui."));
+    }
+
+    @Test
+    void aPartialEditAcceptsTheFieldsThatDidNotCome() {
+        ResponseEntity<String> response = rest.exchange("/probe/vehicles/7", HttpMethod.PATCH,
+                new HttpEntity<>("{}", jsonHeaders()), String.class);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+    }
+
+    @Test
     void wrongTypeInTheBodyPointsToTheField() {
         String body = """
                 {"brand": "Fiat", "priceCents": "muito", "year": 2020}""";

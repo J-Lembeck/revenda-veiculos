@@ -13,17 +13,10 @@ import com.revenda.common.test.TestTokens;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.Callable;
-import java.util.concurrent.CyclicBarrier;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.RepeatedTest;
 import org.junit.jupiter.api.Test;
@@ -350,29 +343,6 @@ class CustomerRegistrationTests extends CustomersApiTest {
         assertThat(statusesOf(answers)).containsExactlyInAnyOrder("201", "409 CPF_ALREADY_REGISTERED");
         assertThat(jdbc.sql("SELECT count(*) FROM customer WHERE cpf_index = :index")
                 .param("index", indexer.index("cpf", cpf)).query(Integer.class).single()).isEqualTo(1);
-    }
-
-    /** Faz as chamadas em threads que largam juntas e devolve as respostas na ordem das chamadas. */
-    @SafeVarargs
-    private static List<ResponseEntity<JsonNode>> atOnce(Callable<ResponseEntity<JsonNode>>... calls) throws Exception {
-        CyclicBarrier start = new CyclicBarrier(calls.length);
-        ExecutorService pool = Executors.newFixedThreadPool(calls.length);
-        try {
-            List<Future<ResponseEntity<JsonNode>>> futures = new ArrayList<>();
-            for (Callable<ResponseEntity<JsonNode>> call : calls) {
-                futures.add(pool.submit(() -> {
-                    start.await(10, TimeUnit.SECONDS);
-                    return call.call();
-                }));
-            }
-            List<ResponseEntity<JsonNode>> answers = new ArrayList<>();
-            for (Future<ResponseEntity<JsonNode>> future : futures) {
-                answers.add(future.get(30, TimeUnit.SECONDS));
-            }
-            return answers;
-        } finally {
-            pool.shutdownNow();
-        }
     }
 
     private static List<String> statusesOf(List<ResponseEntity<JsonNode>> answers) {

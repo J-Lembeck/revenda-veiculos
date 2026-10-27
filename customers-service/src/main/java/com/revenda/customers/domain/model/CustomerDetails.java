@@ -35,6 +35,12 @@ public record CustomerDetails(String fullName, Cpf cpf, LocalDate birthDate, Pho
         return new CustomerDetails(fullName.strip(), parsedCpf.orElseThrow(), birthDate, new Phone(phone), address);
     }
 
+    /** Com o nome, o telefone e o endereço novos; o nulo fica como está, e CPF e nascimento não mudam (RN-07). */
+    public CustomerDetails edit(String newFullName, Phone newPhone, Address newAddress) {
+        return new CustomerDetails(newFullName == null ? fullName : newFullName.strip(), cpf, birthDate,
+                newPhone == null ? phone : newPhone, newAddress == null ? address : newAddress);
+    }
+
     @Override
     public String toString() {
         return "CustomerDetails[dados pessoais omitidos]";
