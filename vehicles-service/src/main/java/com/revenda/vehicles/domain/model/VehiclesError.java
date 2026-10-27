@@ -17,7 +17,9 @@ public enum VehiclesError implements ErrorCode {
     VEHICLE_NOT_EDITABLE(ErrorKind.CONFLICT,
             "Este veículo já foi vendido e não pode mais ser editado."),
     VERSION_CONFLICT(ErrorKind.CONFLICT,
-            "Este veículo foi alterado por outra pessoa depois que você o abriu. Abra de novo e refaça a edição.");
+            "Este veículo foi alterado por outra pessoa depois que você o abriu. Abra de novo e refaça a edição."),
+    VEHICLE_UNAVAILABLE(ErrorKind.CONFLICT,
+            "Este veículo acabou de ser reservado por outra pessoa. Escolha outro ou volte mais tarde.");
 
     private final ErrorKind kind;
     private final String message;

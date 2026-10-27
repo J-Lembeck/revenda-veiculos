@@ -10,6 +10,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.CyclicBarrier;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.resttestclient.TestRestTemplate;
 import org.springframework.boot.resttestclient.autoconfigure.AutoConfigureTestRestTemplate;
@@ -118,6 +119,15 @@ abstract class VehiclesApiTest {
         List<UUID> ids = new ArrayList<>();
         response.getBody().get("items").forEach(item -> ids.add(UUID.fromString(item.get("id").asString())));
         return ids;
+    }
+
+    /** Espera as outras threads na largada, para os pedidos simultâneos saírem juntos. */
+    protected static void await(CyclicBarrier barrier) {
+        try {
+            barrier.await();
+        } catch (Exception e) {
+            throw new IllegalStateException(e);
+        }
     }
 
     /** Um veículo cadastrado pelo {@code POST}, com o corpo que o criou. */

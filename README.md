@@ -149,6 +149,7 @@ os demais endpoints do Actuator respondem `404`.
 | `vehicles` | `GET /vehicles` | qualquer um | vitrine: só à venda, do mais barato ao mais caro, com filtros e paginação |
 | `vehicles` | `GET /vehicles/{id}` | qualquer um | detalhe: o público vê só o que está à venda; a equipe vê qualquer um |
 | `vehicles` | `GET /vehicles/sold` | `SELLER`, `ADMIN` | vendidos e entregues, do menor para o maior preço de venda |
+| `vehicles` | `POST /internal/vehicles/{id}/reservations` | serviço com *scope* `vehicles.reserve` | reserva o veículo para uma compra e devolve o preço do momento |
 
 O cadastro confere marca, modelo, cor, quilometragem, anos (fabricação de 1900 ao ano que vem; modelo
 igual ou no ano seguinte), preço (acima de zero e até R$ 10.000.000,00, em centavos), placa (padrão antigo
@@ -179,6 +180,32 @@ Rota aberta não precisa de token, mas um token que vem é conferido: vencido, a
 não aceito responde `401`, como em qualquer rota. Ele nunca vira visitante em silêncio — assim, quem é da
 equipe e teve a sessão vencida não vê a vitrine pública achando que é a dela. Ao receber `401` numa rota
 aberta, o front descarta o token e repete o pedido sem `Authorization`.
+
+### A reserva
+
+A reserva é o passo da compra em que dois clientes podem disputar o mesmo carro. Ela é um único `UPDATE`
+condicional — a cláusula `WHERE` é a regra:
+
+```sql
+UPDATE vehicle
+   SET status = 'RESERVED', purchase_id = :purchaseId, version = version + 1, updated_at = :now
+ WHERE id = :id AND status = 'AVAILABLE'
+RETURNING price_cents;
+```
+
+O Postgres trava a linha durante o `UPDATE`: de vários pedidos ao mesmo tempo, o primeiro muda o status e
+os outros, quando chegam à linha, já não a encontram `AVAILABLE` e não mudam nada. Não há "ler o status e
+depois gravar", em que dois leriam `AVAILABLE` e os dois reservariam. Quem vence recebe `200` com o
+`priceCents` daquele instante — é o preço que a compra vai cobrar, mesmo que a equipe edite o veículo
+depois. Quem perde recebe `409 VEHICLE_UNAVAILABLE`. Um teste dispara dez reservas simultâneas do mesmo
+veículo, vinte vezes seguidas, e confere que sempre exatamente uma vence.
+
+Quando o `UPDATE` não muda nada, o serviço só lê a linha para responder: se ela já está reservada para a
+**mesma** compra, a resposta é `200` sem efeito, porque a reserva é idempotente pelo `purchaseId` (por isso
+a rota não pede `Idempotency-Key`). Qualquer outro caso — reservado por outra compra, vendido, entregue ou
+um id que não existe — é `409`. A rota é interna: só o `sales-service`, com token de serviço e o *scope*
+`vehicles.reserve`, chama; token de pessoa, mesmo da equipe, recebe `403`. Cada reserva grava a auditoria
+`VEHICLE_RESERVED` com o serviço que pediu, a compra e o preço.
 
 ## Usuários sintéticos
 
