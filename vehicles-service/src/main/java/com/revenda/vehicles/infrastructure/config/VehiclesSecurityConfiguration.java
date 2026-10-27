@@ -15,6 +15,9 @@ class VehiclesSecurityConfiguration {
     SecurityRoutes vehiclesRoutes() {
         return () -> List.of(
                 Route.forRoles(HttpMethod.POST, "/vehicles", Role.SELLER),
-                Route.forRoles(HttpMethod.PUT, "/vehicles/{id}", Role.SELLER));
+                Route.forRoles(HttpMethod.PUT, "/vehicles/{id}", Role.SELLER),
+                Route.forRoles(HttpMethod.GET, "/vehicles/sold", Role.SELLER),
+                Route.open(HttpMethod.GET, "/vehicles"),
+                Route.open(HttpMethod.GET, "/vehicles/{id}"));
     }
 }
