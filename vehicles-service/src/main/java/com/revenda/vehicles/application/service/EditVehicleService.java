@@ -34,6 +34,6 @@ public class EditVehicleService implements EditVehicleUseCase {
         audit.record(AuditEntry.of(VehiclesAuditAction.VEHICLE_UPDATED, Vehicle.ENTITY_TYPE, edited.id(),
                         VehicleSnapshot.summary("Veículo editado", edited))
                 .withChange(VehicleSnapshot.of(current), VehicleSnapshot.of(edited)));
-        return edited;
+        return stock.findById(edited.id()).orElseThrow(BusinessException::notFound);
     }
 }

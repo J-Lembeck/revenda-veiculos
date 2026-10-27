@@ -2,10 +2,12 @@ package com.revenda.vehicles.application.service;
 
 import com.revenda.common.audit.AuditEntry;
 import com.revenda.common.audit.AuditRecorder;
+import com.revenda.common.error.BusinessException;
 import com.revenda.common.idempotency.IdempotencyStore;
 import com.revenda.vehicles.domain.model.Vehicle;
 import com.revenda.vehicles.domain.ports.in.RegisterVehicleCommand;
 import com.revenda.vehicles.domain.ports.in.RegisterVehicleUseCase;
+import com.revenda.vehicles.domain.ports.out.LoadVehiclePort;
 import com.revenda.vehicles.domain.ports.out.SaveVehiclePort;
 import java.time.Clock;
 import java.util.UUID;
@@ -18,6 +20,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class RegisterVehicleService implements RegisterVehicleUseCase {
 
     private final SaveVehiclePort vehicles;
+    private final LoadVehiclePort stock;
     private final IdempotencyStore idempotency;
     private final AuditRecorder audit;
     private final Clock clock;
@@ -31,7 +34,7 @@ public class RegisterVehicleService implements RegisterVehicleUseCase {
             audit.record(AuditEntry.of(VehiclesAuditAction.VEHICLE_CREATED, Vehicle.ENTITY_TYPE, vehicle.id(),
                             VehicleSnapshot.summary("Veículo cadastrado", vehicle))
                     .withChange(null, VehicleSnapshot.of(vehicle)));
-            return vehicle;
+            return stock.findById(vehicle.id()).orElseThrow(BusinessException::notFound);
         }).result();
     }
 }
