@@ -30,8 +30,48 @@ class CustomerApiDocsTests extends CustomersApiTest {
                 .forEach(method -> operations.add(method.getKey().toUpperCase() + " " + path.getKey())));
 
         assertThat(operations).containsExactlyInAnyOrder("POST /customers", "GET /customers/me", "PATCH /customers/me",
-                "GET /customers/{id}", "POST /customers/{id}/cpf-reveal");
+                "GET /customers/{id}", "POST /customers/{id}/cpf-reveal",
+                "GET /internal/customers/by-subject/{sub}/eligibility", "GET /internal/customers/{id}/payer",
+                "GET /internal/customers/{id}/transfer-data", "POST /internal/customers/{id}/cpf-check");
         assertThat(docs.at("/info/title").asString()).isEqualTo("Cadastro de compradores");
+    }
+
+    @Test
+    void theInternalRoutesAreOnlyForTheServiceWithTheScopeAndTheReadsTakeThePurchase() {
+        JsonNode eligibility = operation("/internal/customers/by-subject/{sub}/eligibility", "get");
+        JsonNode payer = operation("/internal/customers/{id}/payer", "get");
+        JsonNode transfer = operation("/internal/customers/{id}/transfer-data", "get");
+        JsonNode cpfCheck = operation("/internal/customers/{id}/cpf-check", "post");
+
+        for (JsonNode internal : List.of(eligibility, payer, transfer, cpfCheck)) {
+            assertThat(internal.get("security").toString()).isEqualTo("[{\"bearer\":[]}]");
+            assertThat(internal.get("description").asString()).contains("scope `customers.read-payer`");
+            assertThat(internal.get("responses").propertyNames()).contains("200", "401", "403", "500");
+            assertThat(internal.get("parameters").valueStream().map(parameter -> parameter.get("name").asString()))
+                    .doesNotContain("Idempotency-Key");
+        }
+        assertThat(eligibility.get("description").asString()).contains("RN-05", "PROFILE_MISSING", "UNDERAGE",
+                "America/Sao_Paulo");
+        assertThat(docs.at("/components/schemas/EligibilityResponse/properties").propertyNames())
+                .containsExactlyInAnyOrder("customerId", "eligible", "reason");
+        assertThat(payer.get("description").asString()).contains("CUSTOMER_PAYER_DATA_READ");
+        assertThat(transfer.get("description").asString()).contains("CUSTOMER_TRANSFER_DATA_READ");
+        assertThat(cpfCheck.get("description").asString()).contains("CUSTOMER_CPF_CHECKED", "blind index");
+        assertThat(cpfCheck.at("/responses/400/description").asString()).contains("CPF_INVALID", "REQUIRED");
+        for (JsonNode read : List.of(payer, transfer, cpfCheck)) {
+            assertThat(read.get("responses").propertyNames()).contains("400", "404");
+            JsonNode purchase = read.get("parameters").valueStream()
+                    .filter(parameter -> parameter.get("name").asString().equals("X-Purchase-Id"))
+                    .findFirst().orElseThrow();
+            assertThat(purchase.get("in").asString()).isEqualTo("header");
+            assertThat(purchase.get("required").asBoolean()).isTrue();
+        }
+        assertThat(docs.at("/components/schemas/PayerResponse/properties").propertyNames())
+                .containsExactlyInAnyOrder("customerId", "fullName", "cpf", "address");
+        assertThat(docs.at("/components/schemas/TransferDataResponse/properties").propertyNames())
+                .containsExactlyInAnyOrder("customerId", "fullName", "cpf", "email", "address");
+        assertThat(docs.at("/components/schemas/CpfCheckResponse/properties").propertyNames())
+                .containsExactly("matches");
     }
 
     @Test

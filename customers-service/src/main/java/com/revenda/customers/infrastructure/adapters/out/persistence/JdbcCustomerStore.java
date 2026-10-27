@@ -17,10 +17,12 @@ import com.revenda.customers.domain.model.Phone;
 import com.revenda.customers.domain.ports.out.LoadCustomerPort;
 import com.revenda.customers.domain.ports.out.LockCustomerPort;
 import com.revenda.customers.domain.ports.out.SaveCustomerPort;
+import java.security.MessageDigest;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.LocalDate;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -142,6 +144,16 @@ class JdbcCustomerStore implements SaveCustomerPort, LoadCustomerPort, LockCusto
                 .param("subject", identitySubject)
                 .query(Boolean.class)
                 .single();
+    }
+
+    @Override
+    public Optional<Boolean> cpfMatches(UUID id, Cpf cpf) {
+        List<byte[]> candidates = indexer.candidates(CPF_INDEX_DOMAIN, cpf.digits());
+        return jdbc.sql("SELECT cpf_index FROM customer WHERE id = :id AND status = 'ACTIVE'")
+                .param("id", id)
+                .query(byte[].class)
+                .optional()
+                .map(stored -> candidates.stream().anyMatch(candidate -> MessageDigest.isEqual(candidate, stored)));
     }
 
     private Customer customer(ResultSet row) throws SQLException {

@@ -211,6 +211,10 @@ conferido, e a equipe logada vê o detalhe completo do veículo.
 | `customers` | `PATCH /customers/me` | `CUSTOMER` | o comprador muda o próprio nome, telefone e endereço |
 | `customers` | `GET /customers/{id}` | `SELLER`, `ADMIN` | a equipe vê o cliente com o mínimo, mascarado |
 | `customers` | `POST /customers/{id}/cpf-reveal` | `ADMIN` | o administrador vê o CPF completo, com motivo, e a revelação é auditada |
+| `customers` | `GET /internal/customers/by-subject/{sub}/eligibility` | serviço com *scope* `customers.read-payer` | se a conta pode comprar: cadastro ativo e 18 anos ou mais |
+| `customers` | `GET /internal/customers/{id}/payer` | serviço com *scope* `customers.read-payer` | nome, CPF e endereço para a cobrança, com a leitura auditada |
+| `customers` | `GET /internal/customers/{id}/transfer-data` | serviço com *scope* `customers.read-payer` | nome, CPF, e-mail e endereço para o documento, com a leitura auditada |
+| `customers` | `POST /internal/customers/{id}/cpf-check` | serviço com *scope* `customers.read-payer` | se o CPF apresentado na retirada é o do cadastro, sem revelar nada |
 
 O cadastro confere marca, modelo, cor, quilometragem, anos (fabricação de 1900 ao ano que vem; modelo
 igual ou no ano seguinte), preço (acima de zero e até R$ 10.000.000,00, em centavos), placa (padrão antigo
@@ -418,6 +422,64 @@ Só o administrador vê o CPF completo, e precisa dizer por quê:
   auditoria mostra quem revelou.
 - A resposta não fica em cache (`no-store`), e a rota não pede `Idempotency-Key`: não cria nada, e guardar a
   resposta guardaria o CPF.
+
+### As rotas internas do cadastro
+
+O `sales-service` precisa do cadastro em quatro momentos da compra e pede ao `customers` na hora, com o token
+de serviço dele (*client credentials*, *scope* `customers.read-payer`). Ele usa o dado e não grava: o dado
+pessoal só fica guardado no `customers`. Token de pessoa — mesmo do administrador, mesmo com o *scope* — e
+serviço sem o *scope* recebem `403`; outro cliente de serviço, `401`. Na nuvem estas rotas nem são publicadas
+no API Gateway.
+
+**Elegibilidade**, antes de a compra existir. `GET /internal/customers/by-subject/{sub}/eligibility`, com o
+`sub` da conta (o pseudônimo do provedor de identidade, não um dado de contato):
+
+```json
+{ "customerId": "3f2b8c4e-…", "eligible": true, "reason": null }
+```
+
+- Conta sem cadastro → `200` com `customerId: null`, `eligible: false` e `reason: "PROFILE_MISSING"` — não é
+  erro, e o `sales` responde ao comprador `422 CUSTOMER_PROFILE_REQUIRED`.
+- Menor de idade → `eligible: false` e `reason: "UNDERAGE"`. A idade conta na **data civil de São Paulo**
+  (`CUSTOMERS_ZONE`, padrão `America/Sao_Paulo`), e não na de UTC, que vira o dia às 21h: a maioridade começa no
+  dia do aniversário de 18 anos, à meia-noite de Brasília. Quem nasceu em 29 de fevereiro faz 18 anos em 1º de
+  março nos anos que não têm esse dia (Lei 810/1949).
+- A resposta não tem nada pessoal e a consulta não grava auditoria.
+
+**Dados da cobrança e do documento.** `GET /internal/customers/{id}/payer` devolve nome, CPF (só dígitos) e
+endereço, para o gateway emitir a cobrança; `GET /internal/customers/{id}/transfer-data` devolve o mesmo e o
+e-mail, para o documento de transferência:
+
+```json
+{ "customerId": "3f2b8c4e-…", "fullName": "Maria Exemplo da Silva", "cpf": "52998224725",
+  "email": "maria.exemplo@example.test",
+  "address": { "zipCode": "01001000", "street": "Praça da Sé", "number": "100", "complement": "apto 1",
+               "district": "Sé", "city": "São Paulo", "state": "SP" } }
+```
+
+- O cabeçalho `X-Purchase-Id` é obrigatório: é a compra para a qual o dado é lido. Sem ele, ou com um valor que não
+  é UUID, a resposta é `400` com `X-Purchase-Id` em `REQUIRED` ou `TYPE_INVALID`, e nada é lido.
+- Cada leitura grava a auditoria `CUSTOMER_PAYER_DATA_READ` ou `CUSTOMER_TRANSFER_DATA_READ` com o serviço que
+  leu e a compra (`"extra": {"purchaseId": "…"}`), nunca o dado lido.
+- A resposta não fica em cache (`Cache-Control: no-store`). Cliente que não existe (ou não está ativo) → `404`,
+  sem auditoria.
+
+**Conferência do CPF na retirada.** `POST /internal/customers/{id}/cpf-check`, com o mesmo `X-Purchase-Id` e o
+CPF que o comprador apresentou na loja, só com números ou com pontos e traço:
+
+```json
+// POST /internal/customers/{id}/cpf-check   X-Purchase-Id: 0b7e4c1a-…
+{ "cpf": "529.982.247-25" }
+// 200
+{ "matches": true }
+```
+
+- A conferência é pelo *blind index*: o serviço calcula o HMAC do CPF apresentado e compara com o do cadastro (e
+  com os das chaves anteriores, durante uma rotação). Nada é decifrado, e o CPF do cadastro nunca sai.
+- Outro CPF válido → `{ "matches": false }`. CPF que não é CPF (dígito verificador errado, tamanho errado) →
+  `400` com `cpf` em `CPF_INVALID` — digitação errada não se confunde com pessoa errada, e nada é conferido.
+- Cada conferência grava `CUSTOMER_CPF_CHECKED` com o serviço, a compra e o resultado (`"matches": true`),
+  nunca o CPF. Não cria nada, então não pede `Idempotency-Key`.
 
 ## Usuários sintéticos
 

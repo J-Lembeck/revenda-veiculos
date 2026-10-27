@@ -8908,8 +8908,10 @@
 									"pm.test('Ana pode comprar', () => {",
 									"    pm.response.to.have.status(200);",
 									"    const eligibility = pm.response.json();",
+									"    pm.expect(Object.keys(eligibility)).to.have.members(['customerId', 'eligible', 'reason']);",
 									"    pm.expect(eligibility.customerId).to.eql(pm.collectionVariables.get('customerId'));",
 									"    pm.expect(eligibility.eligible).to.eql(true);",
+									"    pm.expect(eligibility.reason).to.eql(null);",
 									"});"
 								]
 							}
@@ -8919,7 +8921,7 @@
 						"method": "GET",
 						"header": [],
 						"url": "{{customersUrl}}/internal/customers/by-subject/{{anaSubject}}/eligibility",
-						"description": "*Scope* `customers.read-payer`. O `sub` na URL é o pseudônimo do provedor de identidade, não dado de contato. Deve aparecer: `200 { customerId, eligible: true }`."
+						"description": "*Scope* `customers.read-payer`. O primeiro passo da compra (RN-05): cadastro ativo e 18 anos ou mais na data da compra, em `America/Sao_Paulo`. O `sub` na URL é o pseudônimo do provedor de identidade, não dado de contato; a resposta não tem nada pessoal e a consulta não é auditada. Deve aparecer: `200 { customerId, eligible: true, reason: null }`."
 					},
 					"response": [],
 					"id": "d5d48f42-e832-508b-bfa5-16063f2c630f"
@@ -8932,10 +8934,12 @@
 							"script": {
 								"type": "text/javascript",
 								"exec": [
-									"pm.test('PROFILE_MISSING', () => {",
+									"pm.test('PROFILE_MISSING, sem customerId', () => {",
 									"    pm.response.to.have.status(200);",
-									"    pm.expect(pm.response.json().eligible).to.eql(false);",
-									"    pm.expect(pm.response.json().reason).to.eql('PROFILE_MISSING');",
+									"    const eligibility = pm.response.json();",
+									"    pm.expect(eligibility.customerId).to.eql(null);",
+									"    pm.expect(eligibility.eligible).to.eql(false);",
+									"    pm.expect(eligibility.reason).to.eql('PROFILE_MISSING');",
 									"});"
 								]
 							}
@@ -8945,7 +8949,7 @@
 						"method": "GET",
 						"header": [],
 						"url": "{{customersUrl}}/internal/customers/by-subject/{{brunoSubject}}/eligibility",
-						"description": "Deve aparecer: `eligible: false`, `reason: PROFILE_MISSING`."
+						"description": "Conta sem cadastro não é erro: o `sales` traduz para `422 CUSTOMER_PROFILE_REQUIRED`. Deve aparecer: `200` com `customerId: null`, `eligible: false`, `reason: PROFILE_MISSING`."
 					},
 					"response": [],
 					"id": "c689df5d-c47c-5ac2-8f2d-fbe866650a2f"
@@ -8960,6 +8964,7 @@
 								"exec": [
 									"pm.test('UNDERAGE', () => {",
 									"    pm.response.to.have.status(200);",
+									"    pm.expect(pm.response.json().customerId).to.be.a('string');",
 									"    pm.expect(pm.response.json().eligible).to.eql(false);",
 									"    pm.expect(pm.response.json().reason).to.eql('UNDERAGE');",
 									"});"
@@ -8971,7 +8976,7 @@
 						"method": "GET",
 						"header": [],
 						"url": "{{customersUrl}}/internal/customers/by-subject/{{caioSubject}}/eligibility",
-						"description": "Deve aparecer: `eligible: false`, `reason: UNDERAGE`."
+						"description": "O Caio tem cadastro (pasta 04), mas não fez 18 anos. Deve aparecer: `eligible: false`, `reason: UNDERAGE`, com o `customerId` dele."
 					},
 					"response": [],
 					"id": "7e829dfb-1d7a-5948-bb35-fa5d1fdb56f9"
@@ -8980,6 +8985,17 @@
 					"name": "customers: dados do pagador",
 					"event": [
 						{
+							"listen": "prerequest",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"if (!pm.collectionVariables.get('internalPurchaseId')) {",
+									"    pm.collectionVariables.set('internalPurchaseId', pm.variables.replaceIn('{{$guid}}'));",
+									"}"
+								]
+							}
+						},
+						{
 							"listen": "test",
 							"script": {
 								"type": "text/javascript",
@@ -8987,9 +9003,44 @@
 									"pm.test('nome, CPF e endereço', () => {",
 									"    pm.response.to.have.status(200);",
 									"    const payer = pm.response.json();",
-									"    pm.expect(payer.name || payer.fullName).to.be.a('string').and.not.empty;",
-									"    pm.expect(String(payer.cpf).replace(/\\D/g, '')).to.eql(pm.collectionVariables.get('anaCpf'));",
-									"    pm.expect(payer.address).to.be.an('object');",
+									"    pm.expect(Object.keys(payer)).to.have.members(['customerId', 'fullName', 'cpf', 'address']);",
+									"    pm.expect(payer.customerId).to.eql(pm.collectionVariables.get('customerId'));",
+									"    pm.expect(payer.fullName).to.be.a('string').and.not.empty;",
+									"    pm.expect(payer.cpf).to.eql(pm.collectionVariables.get('anaCpf'));",
+									"    pm.expect(payer.address.zipCode).to.match(/^\\d{8}$/);",
+									"});",
+									"pm.test('sem cache', () => pm.expect(pm.response.headers.get('Cache-Control')).to.eql('no-store'));"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "X-Purchase-Id",
+								"value": "{{internalPurchaseId}}"
+							}
+						],
+						"url": "{{customersUrl}}/internal/customers/{{customerId}}/payer",
+						"description": "Nome, CPF e endereço para a cobrança — o `sales` usa e não grava (regra 11). O `X-Purchase-Id` (obrigatório) é a compra para a qual o dado é lido; aqui, a compra fictícia da reserva acima. Cada leitura grava `CUSTOMER_PAYER_DATA_READ` com o serviço e a compra, sem dado pessoal. Deve aparecer: `200` com o CPF da Ana só em dígitos e `Cache-Control: no-store`."
+					},
+					"response": [],
+					"id": "ed6d020b-191a-5dc1-8133-720feb1f24c2"
+				},
+				{
+					"name": "customers: pagador sem a compra → 400",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"responde 400 VALIDATION_FAILED com X-Purchase-Id REQUIRED\", () => {",
+									"    pm.response.to.have.status(400);",
+									"    const error = pm.response.json();",
+									"    pm.expect(error.code).to.eql('VALIDATION_FAILED');",
+									"    pm.expect(error.fields.map((f) => f.field + ' ' + f.code)).to.include('X-Purchase-Id REQUIRED');",
 									"});"
 								]
 							}
@@ -8999,10 +9050,10 @@
 						"method": "GET",
 						"header": [],
 						"url": "{{customersUrl}}/internal/customers/{{customerId}}/payer",
-						"description": "Nome, CPF e endereço para a cobrança — o `sales` usa e não grava (regra 11). Auditado como `CUSTOMER_PAYER_DATA_READ`. Deve aparecer: `200` com o CPF da Ana."
+						"description": "Sem o `X-Purchase-Id`, a leitura não teria motivo na auditoria. Deve aparecer: `400 VALIDATION_FAILED` com `X-Purchase-Id` `REQUIRED`; nada é lido nem auditado."
 					},
 					"response": [],
-					"id": "ed6d020b-191a-5dc1-8133-720feb1f24c2"
+					"id": "c9b6af26-1066-5986-a2cf-eb06063d5d21"
 				},
 				{
 					"name": "customers: dados para o documento",
@@ -9015,19 +9066,26 @@
 									"pm.test('nome, CPF, e-mail e endereço', () => {",
 									"    pm.response.to.have.status(200);",
 									"    const data = pm.response.json();",
-									"    pm.expect(String(data.cpf).replace(/\\D/g, '')).to.eql(pm.collectionVariables.get('anaCpf'));",
+									"    pm.expect(Object.keys(data)).to.have.members(['customerId', 'fullName', 'cpf', 'email', 'address']);",
+									"    pm.expect(data.cpf).to.eql(pm.collectionVariables.get('anaCpf'));",
 									"    pm.expect(data.email).to.eql('ana.cliente@example.test');",
 									"    pm.expect(data.address).to.be.an('object');",
-									"});"
+									"});",
+									"pm.test('sem cache', () => pm.expect(pm.response.headers.get('Cache-Control')).to.eql('no-store'));"
 								]
 							}
 						}
 					],
 					"request": {
 						"method": "GET",
-						"header": [],
+						"header": [
+							{
+								"key": "X-Purchase-Id",
+								"value": "{{internalPurchaseId}}"
+							}
+						],
 						"url": "{{customersUrl}}/internal/customers/{{customerId}}/transfer-data",
-						"description": "Nome, CPF, e-mail e endereço para o documento de transferência. Auditado. Deve aparecer: `200` com o e-mail da Ana."
+						"description": "Nome, CPF, e-mail e endereço do comprador para o documento de transferência. Cada leitura grava `CUSTOMER_TRANSFER_DATA_READ` com o serviço e a compra. Deve aparecer: `200` com o e-mail da Ana e `Cache-Control: no-store`."
 					},
 					"response": [],
 					"id": "8db22d5b-e8cc-57c8-bd6f-5265facd8741"
@@ -9035,6 +9093,59 @@
 				{
 					"name": "customers: conferir o CPF certo",
 					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('matches: true', () => {",
+									"    pm.response.to.have.status(200);",
+									"    pm.expect(pm.response.json()).to.eql({ matches: true });",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "X-Purchase-Id",
+								"value": "{{internalPurchaseId}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": "{{customersUrl}}/internal/customers/{{customerId}}/cpf-check",
+						"description": "A conferência da retirada, pelo *blind index* — responde só se bate, sem decifrar nem revelar o CPF do cadastro. Grava `CUSTOMER_CPF_CHECKED` com a compra e o resultado, nunca o CPF. Deve aparecer: `{ \"matches\": true }`.",
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"cpf\": \"{{anaCpf}}\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"response": [],
+					"id": "9f324901-b5a4-5ef3-bdea-d87d2d397e7a"
+				},
+				{
+					"name": "customers: conferir o CPF com pontuação",
+					"event": [
+						{
+							"listen": "prerequest",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"const cpf = pm.collectionVariables.get('anaCpf');",
+									"pm.collectionVariables.set('anaCpfFormatted', cpf.replace(/(\\d{3})(\\d{3})(\\d{3})(\\d{2})/, '$1.$2.$3-$4'));"
+								]
+							}
+						},
 						{
 							"listen": "test",
 							"script": {
@@ -9052,15 +9163,19 @@
 						"method": "POST",
 						"header": [
 							{
+								"key": "X-Purchase-Id",
+								"value": "{{internalPurchaseId}}"
+							},
+							{
 								"key": "Content-Type",
 								"value": "application/json"
 							}
 						],
 						"url": "{{customersUrl}}/internal/customers/{{customerId}}/cpf-check",
-						"description": "A conferência da retirada, pelo *blind index* — responde só se bate, sem revelar o CPF do cadastro. Auditado como `CUSTOMER_CPF_CHECKED`. Deve aparecer: `{ \"matches\": true }`.",
+						"description": "O CPF digitado com pontos e traço é o mesmo. Deve aparecer: `{ \"matches\": true }`.",
 						"body": {
 							"mode": "raw",
-							"raw": "{\n  \"cpf\": \"{{anaCpf}}\"\n}",
+							"raw": "{\n  \"cpf\": \"{{anaCpfFormatted}}\"\n}",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -9069,7 +9184,7 @@
 						}
 					},
 					"response": [],
-					"id": "9f324901-b5a4-5ef3-bdea-d87d2d397e7a"
+					"id": "12ea78f8-b4ba-5d44-9761-01263de9c506"
 				},
 				{
 					"name": "customers: conferir um CPF errado",
@@ -9111,12 +9226,16 @@
 						"method": "POST",
 						"header": [
 							{
+								"key": "X-Purchase-Id",
+								"value": "{{internalPurchaseId}}"
+							},
+							{
 								"key": "Content-Type",
 								"value": "application/json"
 							}
 						],
 						"url": "{{customersUrl}}/internal/customers/{{customerId}}/cpf-check",
-						"description": "Deve aparecer: `{ \"matches\": false }`.",
+						"description": "Outro CPF válido: não é a pessoa do cadastro (o `sales` responde `422 IDENTITY_MISMATCH`). A auditoria grava a conferência com `matches: false`. Deve aparecer: `{ \"matches\": false }`.",
 						"body": {
 							"mode": "raw",
 							"raw": "{\n  \"cpf\": \"{{otherCpf}}\"\n}",
@@ -9129,6 +9248,51 @@
 					},
 					"response": [],
 					"id": "6e1c738b-7cb6-59b3-9055-76e035a62b94"
+				},
+				{
+					"name": "customers: CPF malformado → 400",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"responde 400 VALIDATION_FAILED com cpf CPF_INVALID\", () => {",
+									"    pm.response.to.have.status(400);",
+									"    const error = pm.response.json();",
+									"    pm.expect(error.code).to.eql('VALIDATION_FAILED');",
+									"    pm.expect(error.fields.map((f) => f.field + ' ' + f.code)).to.include('cpf CPF_INVALID');",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "X-Purchase-Id",
+								"value": "{{internalPurchaseId}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": "{{customersUrl}}/internal/customers/{{customerId}}/cpf-check",
+						"description": "Dígito verificador errado é digitação errada, não pessoa errada. Deve aparecer: `400 VALIDATION_FAILED` com `cpf` `CPF_INVALID`; nada é conferido nem auditado.",
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"cpf\": \"12345678900\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"response": [],
+					"id": "0b308496-4c23-505d-a596-2eb95d096e34"
 				},
 				{
 					"name": "customers: token de pessoa → 403",
@@ -9148,7 +9312,12 @@
 					],
 					"request": {
 						"method": "GET",
-						"header": [],
+						"header": [
+							{
+								"key": "X-Purchase-Id",
+								"value": "{{internalPurchaseId}}"
+							}
+						],
 						"url": "{{customersUrl}}/internal/customers/{{customerId}}/payer",
 						"description": "Nem a própria titular lê a rota interna. Deve aparecer: `403 FORBIDDEN`.",
 						"auth": {
@@ -9183,7 +9352,12 @@
 					],
 					"request": {
 						"method": "GET",
-						"header": [],
+						"header": [
+							{
+								"key": "X-Purchase-Id",
+								"value": "{{internalPurchaseId}}"
+							}
+						],
 						"url": "{{customersUrl}}/internal/customers/{{customerId}}/payer",
 						"description": "O `customers` só aceita o `sales-service` como serviço. Deve aparecer: `401 UNAUTHENTICATED`.",
 						"auth": {

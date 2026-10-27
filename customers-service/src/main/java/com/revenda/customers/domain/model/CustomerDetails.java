@@ -12,6 +12,7 @@ public record CustomerDetails(String fullName, Cpf cpf, LocalDate birthDate, Pho
 
     public static final int FULL_NAME_LIMIT = 150;
     public static final LocalDate FIRST_BIRTH_DATE = LocalDate.of(1900, 1, 1);
+    public static final int AGE_OF_MAJORITY = 18;
 
     /**
      * Confere, de uma vez, o CPF (RN-06) e a data de nascimento, de 1900 até ontem; os formatos dos outros campos
@@ -22,8 +23,7 @@ public record CustomerDetails(String fullName, Cpf cpf, LocalDate birthDate, Pho
         List<FieldViolation> violations = new ArrayList<>();
         Optional<Cpf> parsedCpf = Cpf.parse(cpf);
         if (parsedCpf.isEmpty()) {
-            violations.add(new FieldViolation("cpf", "CPF_INVALID",
-                    "O CPF tem 11 dígitos e os dois últimos conferem os anteriores. Confira o número."));
+            violations.add(Cpf.invalidAt("cpf"));
         }
         if (birthDate == null || birthDate.isBefore(FIRST_BIRTH_DATE) || !birthDate.isBefore(today)) {
             violations.add(new FieldViolation("birthDate", "DATE_INVALID",
@@ -39,6 +39,18 @@ public record CustomerDetails(String fullName, Cpf cpf, LocalDate birthDate, Pho
     public CustomerDetails edit(String newFullName, Phone newPhone, Address newAddress) {
         return new CustomerDetails(newFullName == null ? fullName : newFullName.strip(), cpf, birthDate,
                 newPhone == null ? phone : newPhone, newAddress == null ? address : newAddress);
+    }
+
+    /**
+     * Tem 18 anos ou mais em {@code date} (RN-05): a maioridade começa no dia do aniversário. Quem nasceu em 29 de
+     * fevereiro a completa em 1º de março nos anos sem esse dia (Lei 810/1949, art. 3º).
+     */
+    public boolean isAdultOn(LocalDate date) {
+        LocalDate anniversary = birthDate.plusYears(AGE_OF_MAJORITY);
+        LocalDate majority = anniversary.getDayOfMonth() == birthDate.getDayOfMonth()
+                ? anniversary
+                : anniversary.plusDays(1);
+        return !date.isBefore(majority);
     }
 
     @Override

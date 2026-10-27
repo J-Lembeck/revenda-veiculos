@@ -13,6 +13,8 @@ import org.springframework.http.HttpMethod;
 @Configuration
 class CustomersSecurityConfiguration {
 
+    private static final String READ_PAYER = "customers.read-payer";
+
     @Bean
     SecurityRoutes customersRoutes() {
         return new SecurityRoutes() {
@@ -23,7 +25,11 @@ class CustomersSecurityConfiguration {
                         Route.forRoles(HttpMethod.GET, "/customers/me", Role.CUSTOMER),
                         Route.forRoles(HttpMethod.PATCH, "/customers/me", Role.CUSTOMER),
                         Route.forRoles(HttpMethod.GET, "/customers/{id}", Role.SELLER),
-                        Route.forRoles(HttpMethod.POST, "/customers/{id}/cpf-reveal", Role.ADMIN));
+                        Route.forRoles(HttpMethod.POST, "/customers/{id}/cpf-reveal", Role.ADMIN),
+                        Route.forScope(HttpMethod.GET, "/internal/customers/by-subject/{sub}/eligibility", READ_PAYER),
+                        Route.forScope(HttpMethod.GET, "/internal/customers/{id}/payer", READ_PAYER),
+                        Route.forScope(HttpMethod.GET, "/internal/customers/{id}/transfer-data", READ_PAYER),
+                        Route.forScope(HttpMethod.POST, "/internal/customers/{id}/cpf-check", READ_PAYER));
             }
 
             @Override

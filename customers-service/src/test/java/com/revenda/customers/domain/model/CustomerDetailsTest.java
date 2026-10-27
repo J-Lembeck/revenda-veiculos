@@ -73,4 +73,41 @@ class CustomerDetailsTest {
         assertThat(customer.createdAt()).isEqualTo(now).isEqualTo(customer.updatedAt());
         assertThat(customer.toString() + details).doesNotContain(CPF, "982.247", "maria@", "Praça", "sub-maria");
     }
+
+    @Test
+    void theMajorityStartsOnTheEighteenthBirthday() {
+        CustomerDetails born = bornOn(LocalDate.of(2008, 10, 27));
+
+        assertThat(born.isAdultOn(LocalDate.of(2026, 10, 26))).isFalse();
+        assertThat(born.isAdultOn(LocalDate.of(2026, 10, 27))).isTrue();
+        assertThat(born.isAdultOn(LocalDate.of(2026, 10, 28))).isTrue();
+    }
+
+    @Test
+    void whoWasBornOnTheTwentyNinthOfFebruaryComesOfAgeOnTheFirstOfMarchWhenTheYearHasNoSuchDay() {
+        CustomerDetails born = bornOn(LocalDate.of(2008, 2, 29));
+
+        assertThat(born.isAdultOn(LocalDate.of(2026, 2, 28))).isFalse();
+        assertThat(born.isAdultOn(LocalDate.of(2026, 3, 1))).isTrue();
+        assertThat(bornOn(LocalDate.of(2012, 2, 29)).isAdultOn(LocalDate.of(2030, 2, 28))).isFalse();
+        assertThat(bornOn(LocalDate.of(2000, 2, 29)).isAdultOn(LocalDate.of(2018, 3, 1))).isTrue();
+    }
+
+    @Test
+    void theEligibilityNeedsTheProfileAndTheMajority() {
+        Instant now = Instant.parse("2026-10-27T12:00:00Z");
+        UUID id = UUID.randomUUID();
+        Customer adult = Customer.register(id, "sub-maria", new EmailAddress("maria@example.test"),
+                bornOn(LocalDate.of(2008, 10, 27)), now);
+
+        assertThat(Eligibility.of(adult, TODAY)).isEqualTo(new Eligibility(id, true, null));
+        assertThat(Eligibility.of(adult, TODAY.minusDays(1)))
+                .isEqualTo(new Eligibility(id, false, IneligibilityReason.UNDERAGE));
+        assertThat(Eligibility.missingProfile())
+                .isEqualTo(new Eligibility(null, false, IneligibilityReason.PROFILE_MISSING));
+    }
+
+    private static CustomerDetails bornOn(LocalDate birthDate) {
+        return new CustomerDetails("Maria", new Cpf(CPF), birthDate, new Phone("+5511999990000"), ADDRESS);
+    }
 }
