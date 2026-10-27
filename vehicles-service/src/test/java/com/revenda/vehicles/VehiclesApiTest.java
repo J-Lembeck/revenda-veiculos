@@ -23,11 +23,16 @@ import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.TestPropertySource;
 import tools.jackson.databind.JsonNode;
 
-/** O serviço de pé, com o banco de teste e tokens de teste, chamado pelo HTTP. */
+/**
+ * O serviço de pé, com o banco de teste e tokens de teste, chamado pelo HTTP. O consumidor da fila fica desligado; o
+ * teste que precisa dele o liga com uma fila própria no LocalStack.
+ */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @AutoConfigureTestRestTemplate
 @Import(TestTokenConfiguration.class)
-@TestPropertySource(properties = "revenda.security.oidc.issuer-uri=" + TestTokens.ISSUER)
+@TestPropertySource(properties = {
+        "revenda.security.oidc.issuer-uri=" + TestTokens.ISSUER,
+        "revenda.vehicle-commands.enabled=false"})
 abstract class VehiclesApiTest {
 
     protected static final String SELLER = "5d1e7a40-vendedora";
@@ -101,6 +106,17 @@ abstract class VehiclesApiTest {
                 .param("delivered", delivered)
                 .param("id", id)
                 .update();
+    }
+
+    /** Reserva o veículo para a compra pela rota interna, como faz o {@code sales}. */
+    protected void reserveFor(UUID id, UUID purchase) {
+        api().asService(TestTokens.SALES_CLIENT, "vehicles.reserve")
+                .post("/internal/vehicles/" + id + "/reservations", Map.of("purchaseId", purchase));
+    }
+
+    protected int audited(String action, UUID id) {
+        return jdbc.sql("SELECT count(*) FROM audit_log WHERE action = :action AND entity_id = :id")
+                .param("action", action).param("id", id).query(Integer.class).single();
     }
 
     protected Map<String, Object> row(UUID id) {

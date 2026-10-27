@@ -14,7 +14,7 @@ isolado num único serviço.
 | Módulo | Porta | Responsável por |
 |---|---|---|
 | `common` | — | biblioteca de infraestrutura compartilhada (sem regra de negócio) |
-| `vehicles-service` | 8081 | estoque: cadastro, edição, vitrine, reserva condicional, baixa |
+| `vehicles-service` | 8081 | estoque: cadastro, edição, vitrine, reserva condicional, comandos da fila (liberar, vender, dar baixa) |
 | `customers-service` | 8082 | cadastro do comprador; único dono do dado pessoal, cifrado em repouso |
 | `sales-service` | 8083 | compra e orquestração da saga, webhook de pagamento, prazos, retirada |
 | `payment-gateway-mock` | 8084 | gateway de pagamento simulado: cobrança, Pix sintético, estorno, webhook |
@@ -73,7 +73,7 @@ A base de teste fica no test-jar do `common` (`com.revenda.common.test`):
 | Peça | Para quê |
 |---|---|
 | `PostgresTestDatabase` | PostgreSQL único da suíte; `register(registry, "vehicles")` liga o *datasource* à `_app` e o Flyway à `_owner` |
-| `LocalStackTestKms` | LocalStack único da suíte, com o KMS |
+| `LocalStackTestContainer`, `LocalStackTestKms`, `LocalStackTestSqs` | LocalStack único da suíte, com o KMS e o SQS; `createFifoQueue` cria uma fila FIFO própria do teste, com DLQ |
 | `TestTokens`, `TestTokenConfiguration` | tokens de pessoa (por papel) e de serviço, assinados por uma chave gerada na memória |
 | `ApiDriver` | chama a API em JSON com o token de quem chama e uma `Idempotency-Key` nova em todo `POST` |
 | `SyntheticData` | CPF sorteado com dígito verificador válido, e-mail em `@example.test`, placa, chassi e RENAVAM válidos — só dado inventado |
@@ -114,9 +114,15 @@ Maven). As variáveis dos serviços têm o valor local como padrão, **menos as 
 recebe as das *roles* do `infra/.env` — `DB_APP_PASSWORD` (aplicação, *role* `<serviço>_app`) e
 `DB_OWNER_PASSWORD` (migrations, *role* `<serviço>_owner`). Com o ambiente local de pé:
 
+O `vehicles-service` também lê a fila de comandos no LocalStack, e o cliente da AWS pega região, endereço
+e credenciais das variáveis padrão do SDK. No local elas apontam para o LocalStack, que aceita as
+credenciais `test`/`test` — não são segredo. Sem elas o serviço não sobe; para subir sem a fila, use
+`VEHICLE_COMMANDS_ENABLED=false`.
+
 ```bash
 ./mvnw -B install -DskipTests
 set -a; . infra/.env; set +a
+export AWS_REGION=sa-east-1 AWS_ENDPOINT_URL=http://localhost:4566 AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test
 DB_APP_PASSWORD="$VEHICLES_DB_APP_PASSWORD" DB_OWNER_PASSWORD="$VEHICLES_DB_OWNER_PASSWORD" \
   ./mvnw -pl vehicles-service spring-boot:run
 ```
@@ -126,6 +132,7 @@ No PowerShell:
 ```powershell
 .\mvnw.cmd -B install -DskipTests
 Get-Content infra/.env | Where-Object { $_ -match '^[A-Z_]+=' } | ForEach-Object { $n, $v = $_ -split '=', 2; Set-Item "env:$n" $v }
+$env:AWS_REGION = "sa-east-1"; $env:AWS_ENDPOINT_URL = "http://localhost:4566"; $env:AWS_ACCESS_KEY_ID = "test"; $env:AWS_SECRET_ACCESS_KEY = "test"
 $env:DB_APP_PASSWORD = $env:VEHICLES_DB_APP_PASSWORD; $env:DB_OWNER_PASSWORD = $env:VEHICLES_DB_OWNER_PASSWORD
 .\mvnw.cmd -pl vehicles-service spring-boot:run
 ```
@@ -206,6 +213,56 @@ a rota não pede `Idempotency-Key`). Qualquer outro caso — reservado por outra
 um id que não existe — é `409`. A rota é interna: só o `sales-service`, com token de serviço e o *scope*
 `vehicles.reserve`, chama; token de pessoa, mesmo da equipe, recebe `403`. Cada reserva grava a auditoria
 `VEHICLE_RESERVED` com o serviço que pediu, a compra e o preço.
+
+### Os comandos da fila
+
+Depois da reserva, a compra muda o estoque por mensagens na fila FIFO `vehicle-commands.fifo`: liberar
+(`ReleaseVehicle`), vender (`MarkVehicleSold`) e dar baixa (`DeliverVehicle`). O `sales-service` grava o
+comando na mesma transação da mudança da compra e um despachante o envia depois; o `vehicles-service` lê
+a fila. Cada mensagem é um envelope JSON, com o veículo como grupo da fila (`MessageGroupId`) — os
+comandos de um mesmo carro chegam na ordem em que foram gravados:
+
+```json
+{ "id": "6f1c2a9e-…", "type": "MarkVehicleSold",
+  "payload": { "vehicleId": "…", "purchaseId": "…", "soldPriceCents": 8990000, "soldAt": "2026-10-27T13:05:00Z" } }
+```
+
+| `type` | `payload` | Efeito |
+|---|---|---|
+| `ReleaseVehicle` | `vehicleId`, `purchaseId` | reservado ou vendido para esta compra → à venda de novo |
+| `MarkVehicleSold` | `vehicleId`, `purchaseId`, `soldPriceCents`, `soldAt` | reservado para esta compra → vendido, pelo preço da reserva |
+| `DeliverVehicle` | `vehicleId`, `purchaseId`, `deliveredAt` | vendido para esta compra → entregue (baixa no estoque) |
+
+A fila entrega **pelo menos uma vez**: a mesma mensagem pode chegar de novo. Por isso o consumidor é
+idempotente. O `id` da mensagem é gravado em `processed_message` na mesma transação do efeito e da
+auditoria; se ele já está lá, a mensagem sai da fila sem mudar nada. Cada efeito é um `UPDATE` condicional
+que só muda o veículo da **mesma** compra no estado certo (`WHERE id = … AND purchase_id = … AND status = …`),
+como na reserva. Quando nada muda, o serviço lê o veículo só para decidir:
+
+- **já em vigor** — vender o que já está vendido para esta compra, entregar o que já foi entregue, liberar o
+  que já está à venda ou é de outra compra: a mensagem é confirmada e apagada, sem efeito nem auditoria.
+  Liberar o veículo de outra compra nunca o libera: é o caso da liberação "por segurança" depois de uma
+  reserva que não respondeu;
+- **ainda não aplicável** — entregar um veículo que ainda está reservado para esta compra: a transação é
+  desfeita (inclusive o `processed_message`), a mensagem fica na fila e volta depois do *visibility timeout*;
+- **contraditório** — vender ou entregar para outra compra, ou um veículo que não existe, ou liberar um
+  veículo já entregue: nada é aplicado, o log registra o erro e, depois de 5 recebimentos, a fila move a
+  mensagem para a DLQ `vehicle-commands-dlq.fifo`. Mensagem ilegível tem o mesmo destino.
+
+O consumidor lê em *long polling*, até 10 mensagens por vez, e só apaga a mensagem tratada. Se uma
+mensagem fica na fila, as seguintes do mesmo veículo naquela leva também ficam, para nenhuma ser aplicada
+fora de ordem. Cada efeito grava a auditoria `VEHICLE_RELEASED`, `VEHICLE_SOLD` ou `VEHICLE_DELIVERED` com
+o ator `SYSTEM`, a compra e o `id` da mensagem. A mensagem e o log levam só ids, centavos e instantes.
+
+Para testar à mão com o ambiente local e o `vehicles-service` de pé, mande um comando com o AWS CLI de dentro
+do contêiner do LocalStack (os ids do veículo e da compra são os de uma reserva feita antes):
+
+```bash
+docker compose -f infra/docker-compose.yml exec localstack awslocal sqs send-message \
+  --queue-url http://localhost:4566/000000000000/vehicle-commands.fifo \
+  --message-group-id <vehicleId> --message-deduplication-id "$(date +%s)" \
+  --message-body '{"id":"<uuid novo>","type":"MarkVehicleSold","payload":{"vehicleId":"<vehicleId>","purchaseId":"<purchaseId>","soldPriceCents":8990000,"soldAt":"2026-10-27T13:05:00Z"}}'
+```
 
 ## Usuários sintéticos
 

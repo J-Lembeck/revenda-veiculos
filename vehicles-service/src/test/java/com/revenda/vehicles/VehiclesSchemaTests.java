@@ -29,7 +29,7 @@ import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.NONE)
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.NONE, properties = "revenda.vehicle-commands.enabled=false")
 class VehiclesSchemaTests {
 
     private static final OffsetDateTime NOW = SqlTime.utc(Instant.parse("2026-10-26T12:00:00Z"));

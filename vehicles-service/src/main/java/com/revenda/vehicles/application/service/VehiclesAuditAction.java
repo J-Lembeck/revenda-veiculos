@@ -5,5 +5,8 @@ import com.revenda.common.audit.AuditAction;
 public enum VehiclesAuditAction implements AuditAction {
     VEHICLE_CREATED,
     VEHICLE_UPDATED,
-    VEHICLE_RESERVED
+    VEHICLE_RESERVED,
+    VEHICLE_RELEASED,
+    VEHICLE_SOLD,
+    VEHICLE_DELIVERED
 }

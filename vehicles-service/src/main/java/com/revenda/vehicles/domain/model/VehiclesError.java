@@ -19,7 +19,11 @@ public enum VehiclesError implements ErrorCode {
     VERSION_CONFLICT(ErrorKind.CONFLICT,
             "Este veículo foi alterado por outra pessoa depois que você o abriu. Abra de novo e refaça a edição."),
     VEHICLE_UNAVAILABLE(ErrorKind.CONFLICT,
-            "Este veículo acabou de ser reservado por outra pessoa. Escolha outro ou volte mais tarde.");
+            "Este veículo acabou de ser reservado por outra pessoa. Escolha outro ou volte mais tarde."),
+    VEHICLE_COMMAND_NOT_YET_APPLICABLE(ErrorKind.CONFLICT,
+            "O veículo ainda não está no estado que este comando pede; o comando volta para a fila."),
+    VEHICLE_COMMAND_CONTRADICTORY(ErrorKind.CONFLICT,
+            "O comando contradiz o estado do veículo e não foi aplicado.");
 
     private final ErrorKind kind;
     private final String message;

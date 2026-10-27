@@ -22,4 +22,13 @@ public interface SaveVehiclePort {
      * momento, ou vazio se não havia veículo à venda com esse id.
      */
     Optional<Money> reserveIfAvailable(UUID id, UUID purchaseId, Instant now);
+
+    /** Devolve à venda o veículo reservado ou vendido para a compra, num {@code UPDATE} condicional; devolve se mudou. */
+    boolean releaseIfHeldBy(UUID id, UUID purchaseId, Instant now);
+
+    /** Vende o veículo reservado para a compra, num {@code UPDATE} condicional; devolve se mudou. */
+    boolean markSoldIfReservedBy(UUID id, UUID purchaseId, Money soldPrice, Instant soldAt, Instant now);
+
+    /** Dá baixa no veículo vendido para a compra, num {@code UPDATE} condicional; devolve se mudou. */
+    boolean markDeliveredIfSoldTo(UUID id, UUID purchaseId, Instant deliveredAt, Instant now);
 }

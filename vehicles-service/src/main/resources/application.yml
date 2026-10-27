@@ -27,3 +27,6 @@ revenda:
       scope-prefix: ${OIDC_SCOPE_PREFIX:}
       web-clients: ${OIDC_WEB_CLIENTS:revenda-web}
       service-clients: ${OIDC_SERVICE_CLIENTS:sales-service}
+  vehicle-commands:
+    enabled: ${VEHICLE_COMMANDS_ENABLED:true}
+    queue-url: ${VEHICLE_COMMANDS_QUEUE_URL:http://localhost:4566/000000000000/vehicle-commands.fifo}

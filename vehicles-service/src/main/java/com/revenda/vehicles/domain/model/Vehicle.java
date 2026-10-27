@@ -36,6 +36,16 @@ public record Vehicle(
         return status == VehicleStatus.RESERVED && purchase.equals(purchaseId);
     }
 
+    /** Vendido para esta compra, entregue ou não: a venda dela já está feita. */
+    public boolean isSoldTo(UUID purchase) {
+        return (status == VehicleStatus.SOLD || status == VehicleStatus.DELIVERED) && purchase.equals(purchaseId);
+    }
+
+    /** Entregue a esta compra: a baixa no estoque já está feita e nada mais a desfaz. */
+    public boolean isDeliveredTo(UUID purchase) {
+        return status == VehicleStatus.DELIVERED && purchase.equals(purchaseId);
+    }
+
     /**
      * Os dados novos na versão seguinte, sem tocar no status nem na compra (RN-02): só à venda ou reservado, e só a
      * partir da versão que está no estoque.
