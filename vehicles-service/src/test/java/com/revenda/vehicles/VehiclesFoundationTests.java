@@ -10,5 +10,6 @@ class VehiclesFoundationTests extends ResourceServerContract {
     @DynamicPropertySource
     static void database(DynamicPropertyRegistry registry) {
         PostgresTestDatabase.register(registry, "vehicles");
+        registry.add("revenda.vehicle-commands.enabled", () -> "false");
     }
 }

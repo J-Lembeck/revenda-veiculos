@@ -79,6 +79,22 @@ class VehicleTest {
         assertThat(vehicle(VehicleStatus.AVAILABLE, 0).isReservedFor(PURCHASE)).isFalse();
     }
 
+    @Test
+    void soldToThisPurchaseIncludesTheDeliveredVehicle() {
+        assertThat(vehicle(VehicleStatus.SOLD, 2).isSoldTo(PURCHASE)).isTrue();
+        assertThat(vehicle(VehicleStatus.DELIVERED, 3).isSoldTo(PURCHASE)).isTrue();
+        assertThat(vehicle(VehicleStatus.SOLD, 2).isSoldTo(UUID.randomUUID())).isFalse();
+        assertThat(vehicle(VehicleStatus.RESERVED, 1).isSoldTo(PURCHASE)).isFalse();
+        assertThat(vehicle(VehicleStatus.AVAILABLE, 0).isSoldTo(PURCHASE)).isFalse();
+    }
+
+    @Test
+    void onlyTheDeliveryToThisPurchaseCountsAsDeliveredToIt() {
+        assertThat(vehicle(VehicleStatus.DELIVERED, 3).isDeliveredTo(PURCHASE)).isTrue();
+        assertThat(vehicle(VehicleStatus.DELIVERED, 3).isDeliveredTo(UUID.randomUUID())).isFalse();
+        assertThat(vehicle(VehicleStatus.SOLD, 2).isDeliveredTo(PURCHASE)).isFalse();
+    }
+
     private static Vehicle vehicle(VehicleStatus status, int version) {
         boolean withPurchase = status != VehicleStatus.AVAILABLE;
         boolean sold = status == VehicleStatus.SOLD || status == VehicleStatus.DELIVERED;

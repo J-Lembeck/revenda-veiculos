@@ -1,26 +1,10 @@
 package com.revenda.common.test;
 
-import org.testcontainers.localstack.LocalStackContainer;
-import org.testcontainers.utility.DockerImageName;
-import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
-import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.http.urlconnection.UrlConnectionHttpClient;
-import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.kms.KmsClient;
 
-/**
- * Um LocalStack só para a suíte inteira, na mesma imagem do ambiente local, com o KMS. Sobe no bloco
- * estático e nunca é parado, como o {@link PostgresTestDatabase}.
- */
+/** O KMS do {@link LocalStackTestContainer}. */
 public final class LocalStackTestKms {
-
-    private static final LocalStackContainer LOCALSTACK;
-
-    static {
-        LOCALSTACK = new LocalStackContainer(DockerImageName.parse("localstack/localstack:4.14.0"))
-                .withServices("kms");
-        LOCALSTACK.start();
-    }
 
     private LocalStackTestKms() {
     }
@@ -28,10 +12,9 @@ public final class LocalStackTestKms {
     public static KmsClient client() {
         return KmsClient.builder()
                 .httpClient(UrlConnectionHttpClient.create())
-                .endpointOverride(LOCALSTACK.getEndpoint())
-                .region(Region.of(LOCALSTACK.getRegion()))
-                .credentialsProvider(StaticCredentialsProvider.create(
-                        AwsBasicCredentials.create(LOCALSTACK.getAccessKey(), LOCALSTACK.getSecretKey())))
+                .endpointOverride(LocalStackTestContainer.endpoint())
+                .region(LocalStackTestContainer.region())
+                .credentialsProvider(LocalStackTestContainer.credentials())
                 .build();
     }
 

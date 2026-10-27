@@ -95,6 +95,47 @@ class JdbcVehicleStore implements SaveVehiclePort, LoadVehiclePort {
     }
 
     @Override
+    public boolean releaseIfHeldBy(UUID id, UUID purchaseId, Instant now) {
+        return jdbc.sql("""
+                        UPDATE vehicle
+                           SET status = 'AVAILABLE', purchase_id = NULL, sold_price_cents = NULL, sold_at = NULL,
+                               version = version + 1, updated_at = :now
+                         WHERE id = :id AND purchase_id = :purchaseId AND status IN ('RESERVED', 'SOLD')""")
+                .param("id", id)
+                .param("purchaseId", purchaseId)
+                .param("now", SqlTime.utc(now))
+                .update() == 1;
+    }
+
+    @Override
+    public boolean markSoldIfReservedBy(UUID id, UUID purchaseId, Money soldPrice, Instant soldAt, Instant now) {
+        return jdbc.sql("""
+                        UPDATE vehicle
+                           SET status = 'SOLD', sold_price_cents = :soldPriceCents, sold_at = :soldAt,
+                               version = version + 1, updated_at = :now
+                         WHERE id = :id AND purchase_id = :purchaseId AND status = 'RESERVED'""")
+                .param("id", id)
+                .param("purchaseId", purchaseId)
+                .param("soldPriceCents", soldPrice.toCents())
+                .param("soldAt", SqlTime.utc(soldAt))
+                .param("now", SqlTime.utc(now))
+                .update() == 1;
+    }
+
+    @Override
+    public boolean markDeliveredIfSoldTo(UUID id, UUID purchaseId, Instant deliveredAt, Instant now) {
+        return jdbc.sql("""
+                        UPDATE vehicle
+                           SET status = 'DELIVERED', delivered_at = :deliveredAt, version = version + 1, updated_at = :now
+                         WHERE id = :id AND purchase_id = :purchaseId AND status = 'SOLD'""")
+                .param("id", id)
+                .param("purchaseId", purchaseId)
+                .param("deliveredAt", SqlTime.utc(deliveredAt))
+                .param("now", SqlTime.utc(now))
+                .update() == 1;
+    }
+
+    @Override
     public Optional<Vehicle> findById(UUID id) {
         return jdbc.sql(SELECT_VEHICLE + " WHERE id = :id")
                 .param("id", id)
