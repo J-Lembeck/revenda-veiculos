@@ -1,6 +1,14 @@
 spring:
   application:
     name: customers-service
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5440/customers}
+    username: ${DB_APP_USER:customers_app}
+    password: ${DB_APP_PASSWORD}
+  flyway:
+    url: ${DB_URL:jdbc:postgresql://localhost:5440/customers}
+    user: ${DB_OWNER_USER:customers_owner}
+    password: ${DB_OWNER_PASSWORD}
 
 server:
   port: 8082

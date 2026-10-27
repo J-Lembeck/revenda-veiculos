@@ -137,8 +137,19 @@ $env:DB_APP_PASSWORD = $env:VEHICLES_DB_APP_PASSWORD; $env:DB_OWNER_PASSWORD = $
 .\mvnw.cmd -pl vehicles-service spring-boot:run
 ```
 
+O `customers-service` também tem banco: sobe do mesmo jeito, com as senhas das *roles* dele (no
+PowerShell, `$env:DB_APP_PASSWORD = $env:CUSTOMERS_DB_APP_PASSWORD; $env:DB_OWNER_PASSWORD = $env:CUSTOMERS_DB_OWNER_PASSWORD`
+antes do `.\mvnw.cmd -pl customers-service spring-boot:run`):
+
+```bash
+DB_APP_PASSWORD="$CUSTOMERS_DB_APP_PASSWORD" DB_OWNER_PASSWORD="$CUSTOMERS_DB_OWNER_PASSWORD" \
+  ./mvnw -pl customers-service spring-boot:run
+```
+
 Na subida, o Flyway cria ou atualiza as tabelas com a *role* `_owner` e a aplicação passa a usar a
-`_app`, que só lê e grava dados.
+`_app`, que só lê e grava dados. No `customers`, o dado pessoal fica em colunas cifradas pela aplicação
+(`*_enc`), o CPF tem um *blind index* (HMAC) para a unicidade, e as chaves de dados ficam em `data_key`
+só embrulhadas pelo KMS; toda coluna pessoal leva o comentário `[pessoal]` no banco.
 
 ```bash
 curl http://localhost:8081/actuator/health
