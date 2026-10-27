@@ -29,3 +29,24 @@ revenda:
       service-clients: ${OIDC_SERVICE_CLIENTS:sales-service}
   crypto:
     kms-key-id: ${KMS_CUSTOMER_KEY_ID:alias/customers-data}
+  customers:
+    require-verified-email: ${CUSTOMERS_REQUIRE_VERIFIED_EMAIL:false}
+  openapi:
+    title: Cadastro de compradores
+    description: >-
+      O cadastro do comprador, feito por ele mesmo, com o dado pessoal cifrado no banco. CPF, e-mail e telefone saem
+      sempre mascarados; o e-mail vem da conta, pelo token. Erros no formato `ApiError` com `code` estável.
+    authorization-url: ${OIDC_AUTHORIZATION_URI:http://localhost:8180/realms/revenda/protocol/openid-connect/auth}
+    token-url: ${OIDC_TOKEN_URI:http://localhost:8180/realms/revenda/protocol/openid-connect/token}
+
+springdoc:
+  default-produces-media-type: application/json
+  override-with-generic-response: false
+  api-docs:
+    enabled: ${OPENAPI_ENABLED:true}
+  swagger-ui:
+    enabled: ${OPENAPI_ENABLED:true}
+    oauth:
+      client-id: ${OIDC_SWAGGER_CLIENT_ID:revenda-web}
+      use-pkce-with-authorization-code-grant: true
+      scopes: openid

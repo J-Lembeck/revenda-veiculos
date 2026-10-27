@@ -1,6 +1,6 @@
 package com.revenda.vehicles.infrastructure.adapters.out.persistence;
 
-import com.revenda.common.error.BusinessException;
+import com.revenda.common.jdbc.UniqueKeys;
 import com.revenda.common.money.Money;
 import com.revenda.common.time.SqlTime;
 import com.revenda.vehicles.domain.model.Page;
@@ -21,11 +21,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
-import java.util.function.Supplier;
 import lombok.RequiredArgsConstructor;
-import org.postgresql.util.PSQLException;
-import org.postgresql.util.ServerErrorMessage;
-import org.springframework.dao.DuplicateKeyException;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.jdbc.core.simple.JdbcClient.StatementSpec;
 import org.springframework.stereotype.Repository;
@@ -61,7 +57,7 @@ class JdbcVehicleStore implements SaveVehiclePort, LoadVehiclePort {
                 .param("version", vehicle.version())
                 .param("createdAt", SqlTime.utc(vehicle.createdAt()))
                 .param("updatedAt", SqlTime.utc(vehicle.updatedAt()));
-        refusingDuplicates(() -> withDetails(insert, vehicle.details()).update());
+        UniqueKeys.translating(UNIQUE_KEYS, () -> withDetails(insert, vehicle.details()).update());
     }
 
     @Override
@@ -76,7 +72,7 @@ class JdbcVehicleStore implements SaveVehiclePort, LoadVehiclePort {
                 .param("id", edited.id())
                 .param("readVersion", edited.version() - 1)
                 .param("now", SqlTime.utc(edited.updatedAt()));
-        return refusingDuplicates(() -> withDetails(update, edited.details()).update()) == 1;
+        return UniqueKeys.translating(UNIQUE_KEYS, () -> withDetails(update, edited.details()).update()) == 1;
     }
 
     @Override
@@ -219,25 +215,5 @@ class JdbcVehicleStore implements SaveVehiclePort, LoadVehiclePort {
                 row.getObject("purchase_id", UUID.class), soldPrice, SqlTime.instantOrNull(row, "sold_at"),
                 SqlTime.instantOrNull(row, "delivered_at"), row.getInt("version"),
                 SqlTime.instantOrNull(row, "created_at"), SqlTime.instantOrNull(row, "updated_at"));
-    }
-
-    private static <T> T refusingDuplicates(Supplier<T> statement) {
-        try {
-            return statement.get();
-        } catch (DuplicateKeyException e) {
-            VehiclesError duplicate = UNIQUE_KEYS.get(constraintOf(e));
-            if (duplicate == null) {
-                throw e;
-            }
-            throw BusinessException.of(duplicate);
-        }
-    }
-
-    private static String constraintOf(DuplicateKeyException e) {
-        if (e.getMostSpecificCause() instanceof PSQLException psql) {
-            ServerErrorMessage server = psql.getServerErrorMessage();
-            return server == null ? null : server.getConstraint();
-        }
-        return null;
     }
 }

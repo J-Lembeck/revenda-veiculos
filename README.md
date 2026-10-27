@@ -206,6 +206,7 @@ conferido, e a equipe logada vê o detalhe completo do veículo.
 | `vehicles` | `GET /vehicles/{id}` | qualquer um | detalhe: o público vê só o que está à venda; a equipe vê qualquer um |
 | `vehicles` | `GET /vehicles/sold` | `SELLER`, `ADMIN` | vendidos e entregues, do menor para o maior preço de venda |
 | `vehicles` | `POST /internal/vehicles/{id}/reservations` | serviço com *scope* `vehicles.reserve` | reserva o veículo para uma compra e devolve o preço do momento |
+| `customers` | `POST /customers` | `CUSTOMER` | o comprador cria o próprio cadastro (`Idempotency-Key` obrigatória; 5 por minuto por rede) |
 
 O cadastro confere marca, modelo, cor, quilometragem, anos (fabricação de 1900 ao ano que vem; modelo
 igual ou no ano seguinte), preço (acima de zero e até R$ 10.000.000,00, em centavos), placa (padrão antigo
@@ -312,6 +313,57 @@ docker compose -f infra/docker-compose.yml exec localstack awslocal sqs send-mes
   --message-group-id <vehicleId> --message-deduplication-id "$(date +%s)" \
   --message-body '{"id":"<uuid novo>","type":"MarkVehicleSold","payload":{"vehicleId":"<vehicleId>","purchaseId":"<purchaseId>","soldPriceCents":8990000,"soldAt":"2026-10-27T13:05:00Z"}}'
 ```
+
+### O cadastro do comprador
+
+`POST /customers` é autoatendimento: a pessoa entra com a própria conta (papel `CUSTOMER`) e manda nome,
+CPF, data de nascimento, telefone e endereço. O **e-mail não vai no corpo**: vem da conta, pelo token
+(`email`), e qualquer `email` no corpo é ignorado. Equipe e serviço não cadastram comprador (`403`).
+
+```json
+{
+  "fullName": "Maria Exemplo da Silva",
+  "cpf": "52998224725",
+  "birthDate": "1990-05-17",
+  "phone": "+5511999990000",
+  "address": { "zipCode": "01001000", "street": "Praça da Sé", "number": "100", "complement": "apto 1",
+               "district": "Sé", "city": "São Paulo", "state": "SP" }
+}
+```
+
+(CPF sintético, com dígito válido.) O CPF vai só com números ou com pontos e traço, e confere os dois
+dígitos verificadores; a data de nascimento vai de 1900 até ontem — menor de idade se cadastra, e a compra
+é que exige 18 anos; o telefone é `+55`, o DDD e o número; o CEP tem 8 dígitos; a UF, a sigla em
+maiúsculas; o complemento é opcional. CPF e data de nascimento errados voltam juntos em `fields`
+(`CPF_INVALID`, `DATE_INVALID`).
+
+A resposta é `201` com `Location: /customers/me` e o cadastro com **CPF, e-mail e telefone mascarados**
+(`***.982.247-**`, `m***@example.test`, `(11) *****-0000`) — também para o próprio titular. No banco, CPF,
+e-mail, telefone, nascimento e endereço ficam cifrados (AES-256-GCM, cada valor amarrado à coluna e à linha
+dele), e o CPF tem ainda o *blind index* (HMAC) que garante um cadastro ativo por CPF sem decifrar nada.
+
+- Uma conta tem um cadastro só: a segunda tentativa responde `409 CUSTOMER_ALREADY_REGISTERED`.
+- Um CPF tem um cadastro ativo só: de outra conta, `409 CPF_ALREADY_REGISTERED`. Dois pedidos ao mesmo tempo
+  com a mesma conta ou o mesmo CPF deixam um cadastro só — os índices únicos do banco decidem.
+- Repetir a `Idempotency-Key` com o mesmo corpo devolve o mesmo cadastro sem criar outro; a chave guarda só o
+  id do cadastro, nunca o dado pessoal.
+- O cadastro grava a auditoria `CUSTOMER_REGISTERED` com a conta que cadastrou e nenhum dado pessoal.
+
+**E-mail verificado.** Com `CUSTOMERS_REQUIRE_VERIFIED_EMAIL=true` (o padrão na nuvem), só se cadastra quem
+tem o e-mail verificado pelo provedor de identidade (`email_verified` no token); fora disso,
+`422 EMAIL_NOT_VERIFIED`. No ambiente local ela vem **desligada**, porque o Keycloak local não manda e-mail:
+quem cria conta pelo "Registrar" da tela de login fica com o e-mail não verificado. Token sem e-mail é
+recusado sempre. Para ver a conferência funcionando no local:
+
+1. Suba o `customers` com `CUSTOMERS_REQUIRE_VERIFIED_EMAIL=true` (no PowerShell,
+   `$env:CUSTOMERS_REQUIRE_VERIFIED_EMAIL = "true"` antes do `spring-boot:run`).
+2. Crie uma conta nova pelo **Registrar** da tela de login do Keycloak (no Swagger do `customers` ou no
+   Postman) e faça o `POST /customers` com ela: `422 EMAIL_NOT_VERIFIED`, e nada é gravado.
+3. No console do Keycloak (`http://localhost:8180`, admin do `infra/.env`), realm `revenda` → *Users* → a
+   conta nova → ligue **Email verified** e salve.
+4. Entre de novo, para o token novo trazer `email_verified: true`, e repita o `POST`: `201`.
+
+Os usuários sintéticos do `realm.json` já têm o e-mail verificado e passam com a conferência ligada ou não.
 
 ## Usuários sintéticos
 

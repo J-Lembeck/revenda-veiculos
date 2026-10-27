@@ -1,6 +1,7 @@
 package com.revenda.vehicles.infrastructure.adapters.in.web;
 
 import com.revenda.common.money.Money;
+import com.revenda.common.text.Texts;
 import com.revenda.vehicles.domain.model.ShowcaseFilter;
 import com.revenda.vehicles.domain.model.VehicleDetails;
 import io.swagger.v3.oas.annotations.Parameter;

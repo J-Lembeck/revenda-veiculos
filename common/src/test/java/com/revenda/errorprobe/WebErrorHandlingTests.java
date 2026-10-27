@@ -83,6 +83,18 @@ class WebErrorHandlingTests {
     }
 
     @Test
+    void aDateThatDoesNotExistPointsToTheField() {
+        String body = """
+                {"brand": "Fiat", "priceCents": 1, "year": 2020, "soldOn": "2020-13-40"}""";
+
+        ResponseEntity<ApiError> response = post("/probe/vehicles", body, MediaType.APPLICATION_JSON);
+
+        assertError(response, HttpStatus.BAD_REQUEST, "VALIDATION_FAILED");
+        assertThat(response.getBody().fields())
+                .containsExactly(new FieldViolation("soldOn", "TYPE_INVALID", "Valor em formato inválido."));
+    }
+
+    @Test
     void malformedBodyIsAValidationFailureWithoutFields() {
         ResponseEntity<ApiError> response = post("/probe/vehicles", "{", MediaType.APPLICATION_JSON);
 
