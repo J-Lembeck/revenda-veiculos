@@ -148,6 +148,17 @@ DB_APP_PASSWORD="$CUSTOMERS_DB_APP_PASSWORD" DB_OWNER_PASSWORD="$CUSTOMERS_DB_OW
   ./mvnw -pl customers-service spring-boot:run
 ```
 
+O `payment-gateway-mock` não tem banco nem token: recebe a chave de API que aceita e o segredo da
+assinatura do webhook, os dois do `infra/.env`, e manda o webhook para o `sales` (`WEBHOOK_URL`, padrão
+`http://localhost:8083/webhooks/payments`). No mesmo terminal:
+
+```bash
+GATEWAY_API_KEY="$PAYMENT_GATEWAY_API_KEY" ./mvnw -pl payment-gateway-mock spring-boot:run
+```
+
+No PowerShell, `$env:GATEWAY_API_KEY = $env:PAYMENT_GATEWAY_API_KEY` antes do
+`.\mvnw.cmd -pl payment-gateway-mock spring-boot:run` (o `PAYMENT_WEBHOOK_SECRET` já veio do `.env`).
+
 Na subida, o Flyway cria ou atualiza as tabelas com a *role* `_owner` e a aplicação passa a usar a
 `_app`, que só lê e grava dados. No `customers`, o dado pessoal fica em colunas cifradas pela aplicação
 (`*_enc`), o CPF tem um *blind index* (HMAC) para a unicidade, e toda coluna pessoal leva o comentário
@@ -215,6 +226,11 @@ conferido, e a equipe logada vê o detalhe completo do veículo.
 | `customers` | `GET /internal/customers/{id}/payer` | serviço com *scope* `customers.read-payer` | nome, CPF e endereço para a cobrança, com a leitura auditada |
 | `customers` | `GET /internal/customers/{id}/transfer-data` | serviço com *scope* `customers.read-payer` | nome, CPF, e-mail e endereço para o documento, com a leitura auditada |
 | `customers` | `POST /internal/customers/{id}/cpf-check` | serviço com *scope* `customers.read-payer` | se o CPF apresentado na retirada é o do cadastro, sem revelar nada |
+| `payment-gateway-mock` | `POST /charges` | chave de API (`X-Api-Key`) | cria a cobrança Pix da compra, uma por `referenceId` |
+| `payment-gateway-mock` | `GET /charges?referenceId=…` | chave de API | acha a cobrança de uma compra |
+| `payment-gateway-mock` | `POST /charges/{id}/cancel` | chave de API | cancela a cobrança pendente (repetir não é erro) |
+| `payment-gateway-mock` | `POST /charges/{id}/refund` | chave de API | estorna a cobrança paga e avisa por webhook (repetir não é erro) |
+| `payment-gateway-mock` | `POST /charges/{id}/simulate` | chave de API | ferramenta de teste: "o cliente pagou", com o webhook assinado |
 
 O cadastro confere marca, modelo, cor, quilometragem, anos (fabricação de 1900 ao ano que vem; modelo
 igual ou no ano seguinte), preço (acima de zero e até R$ 10.000.000,00, em centavos), placa (padrão antigo
@@ -480,6 +496,63 @@ CPF que o comprador apresentou na loja, só com números ou com pontos e traço:
   `400` com `cpf` em `CPF_INVALID` — digitação errada não se confunde com pessoa errada, e nada é conferido.
 - Cada conferência grava `CUSTOMER_CPF_CHECKED` com o serviço, a compra e o resultado (`"matches": true`),
   nunca o CPF. Não cria nada, então não pede `Idempotency-Key`.
+
+### O gateway de pagamento simulado
+
+O `payment-gateway-mock` faz o papel do provedor de Pix: o `sales` cria a cobrança, mostra o código ao
+comprador e só considera a compra paga quando o gateway avisa pelo webhook assinado. Toda rota pede a chave
+de API no cabeçalho `X-Api-Key` (sem ela, ou errada, `401 UNAUTHENTICATED`), menos o `GET /actuator/health`.
+As cobranças ficam em memória e somem quando o gateway para.
+
+```json
+// POST /charges
+{ "referenceId": "<id da compra>", "amountCents": 4590000, "dueAt": "2026-10-27T14:32:00Z",
+  "payer": { "name": "Pagador Sintético", "cpf": "52998224725",
+             "address": { "zipCode": "01310000", "street": "Rua das Amostras", "number": "100",
+                          "district": "Centro", "city": "São Paulo", "state": "SP" } } }
+// 201
+{ "chargeId": "chg_…", "pixCode": "00020101021226380014br.gov.bcb.pix0116pix@example.test…6304EB29",
+  "dueAt": "2026-10-27T14:32:00Z" }
+```
+
+- **Uma cobrança por `referenceId`.** Repetir o pedido (o `sales` repete depois de um *timeout*) devolve `200`
+  com a mesma cobrança; a mesma referência com outro valor é `409 CHARGE_REFERENCE_CONFLICT`. Pedidos
+  simultâneos com a mesma referência deixam uma cobrança só. O vencimento precisa estar no futuro.
+- **O pagador** fica só em memória: nunca vai para o log, para a resposta nem para o webhook.
+- **O `pixCode`** é um BR Code (o "copia e cola" do Pix) no formato do Banco Central, com o valor, o id da
+  cobrança e o CRC — mas com a chave fictícia `pix@example.test`: dá para virar QR Code, e nenhum banco paga.
+- **`GET /charges?referenceId=…`** devolve a cobrança com `status` (`PENDING`, `PAID`, `CANCELLED`, `REFUNDED`),
+  o valor cobrado e, depois do pagamento, o valor pago (`paidAmountCents`).
+- **Cancelar e estornar nunca falham por estado.** Cancelar muda só a pendente; estornar muda só a paga, e
+  avisa por `CHARGE_REFUNDED`. Fora disso, e na repetição, a resposta é `200` com o status atual, sem mudar
+  nada nem mandar evento. É o que deixa a compensação da compra repetir o comando sem travar.
+
+**Simular o pagamento.** `POST /charges/{id}/simulate` faz o papel do cliente que pagou o Pix:
+
+```json
+{ "outcome": "PAID", "deliveries": 1 }
+// 202
+{ "eventId": "evt_…", "type": "CHARGE_PAID", "amountCents": 4590000, "deliveries": 1 }
+```
+
+- `outcome: PAID_WRONG_AMOUNT` paga R$ 1,00 a menos; `deliveries: 2` (até 3) manda o mesmo evento duas vezes,
+  ao mesmo tempo, para testar a deduplicação no `sales`.
+- Paga também a cobrança cancelada: é o Pix que chega depois do prazo, e o `sales` o estorna. A cobrança já
+  paga ou estornada não se paga de novo (`409 CHARGE_NOT_PAYABLE`).
+- A resposta sai na hora; o webhook vai depois, em segundo plano:
+
+```
+POST http://localhost:8083/webhooks/payments
+X-Signature: t=1792680000,v1=5f2b…
+{ "eventId": "evt_…", "type": "CHARGE_PAID", "chargeId": "chg_…", "referenceId": "<id da compra>",
+  "amountCents": 4590000, "occurredAt": "2026-10-27T14:10:00Z" }
+```
+
+O `v1` é o HMAC-SHA256 de `t + "." + corpo` com o `PAYMENT_WEBHOOK_SECRET`, calculado a cada envio com o
+carimbo do momento; quem recebe confere em tempo constante e recusa carimbo a mais de 5 minutos. A mesma peça
+(`WebhookSignature`, no `common`) assina aqui e confere no `sales`. Sem `2xx` do `sales`, o gateway reentrega
+até 3 vezes, depois de 1 s, 5 s e 25 s (`WEBHOOK_RETRY_DELAYS`), e então desiste e registra no log. A fila de
+reentrega é em memória.
 
 ## Usuários sintéticos
 

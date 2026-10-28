@@ -8281,7 +8281,7 @@
 		},
 		{
 			"name": "09 · Gateway simulado (X-Api-Key)",
-			"description": "O `payment-gateway-mock` não usa token: autentica pela chave de API no cabeçalho `X-Api-Key` — preencha `paymentGatewayApiKey` com o `PAYMENT_GATEWAY_API_KEY` do `infra/.env`. Cobranças em memória, idempotentes por `referenceId`; o pagador (sintético aqui) nunca vai para o log. O `simulate` e o estorno aparecem nas pastas 05 e 06.",
+			"description": "O `payment-gateway-mock` não usa token: autentica pela chave de API no cabeçalho `X-Api-Key` — preencha `paymentGatewayApiKey` com o `PAYMENT_GATEWAY_API_KEY` do `infra/.env` (o gateway a lê de `GATEWAY_API_KEY`). Cobranças em memória (somem quando ele para), idempotentes por `referenceId`; o pagador (sintético aqui) nunca vai para o log, para a resposta nem para o webhook.\n\nCancelar e estornar nunca falham por estado: só a transição válida muda a cobrança, o resto responde `200` com o status atual — é o que deixa a compensação do outbox repetir sem medo. O `simulate` responde `202` e manda o webhook assinado ao `sales` em segundo plano (com o `sales` fora do ar, o gateway reentrega 3 vezes e desiste, só no log). O fluxo com o `sales` está nas pastas 05 e 06.",
 			"item": [
 				{
 					"name": "Sem chave → 401",
@@ -8313,7 +8313,10 @@
 							"script": {
 								"type": "text/javascript",
 								"exec": [
-									"pm.test(\"responde 401\", () => pm.response.to.have.status(401));"
+									"pm.test(\"responde 401 UNAUTHENTICATED\", () => {",
+									"    pm.response.to.have.status(401);",
+									"    pm.expect(pm.response.json().code).to.eql('UNAUTHENTICATED');",
+									"});"
 								]
 							}
 						}
@@ -8327,7 +8330,7 @@
 							}
 						],
 						"url": "{{gatewayUrl}}/charges",
-						"description": "Deve aparecer: `401` — e nenhuma cobrança criada.",
+						"description": "Deve aparecer: `401 UNAUTHENTICATED` pedindo o `X-Api-Key` — e nenhuma cobrança criada.",
 						"auth": {
 							"type": "noauth"
 						},
@@ -8352,7 +8355,10 @@
 							"script": {
 								"type": "text/javascript",
 								"exec": [
-									"pm.test(\"responde 401\", () => pm.response.to.have.status(401));"
+									"pm.test(\"responde 401 UNAUTHENTICATED\", () => {",
+									"    pm.response.to.have.status(401);",
+									"    pm.expect(pm.response.json().code).to.eql('UNAUTHENTICATED');",
+									"});"
 								]
 							}
 						}
@@ -8366,7 +8372,7 @@
 							}
 						],
 						"url": "{{gatewayUrl}}/charges",
-						"description": "Deve aparecer: `401`.",
+						"description": "A chave é comparada em tempo constante. Deve aparecer: `401 UNAUTHENTICATED`.",
 						"auth": {
 							"type": "apikey",
 							"apikey": [
@@ -8409,10 +8415,11 @@
 								"type": "text/javascript",
 								"exec": [
 									"pm.test('cria a cobrança com o código Pix', () => {",
-									"    pm.expect(pm.response.code).to.be.oneOf([200, 201]);",
+									"    pm.response.to.have.status(201);",
 									"    const charge = pm.response.json();",
-									"    pm.expect(charge.chargeId).to.be.a('string').and.not.empty;",
-									"    pm.expect(charge.pixCode).to.be.a('string').and.not.empty;",
+									"    pm.expect(Object.keys(charge)).to.have.members(['chargeId', 'pixCode', 'dueAt']);",
+									"    pm.expect(charge.chargeId).to.match(/^chg_[0-9a-f]{32}$/);",
+									"    pm.expect(charge.pixCode).to.match(/^000201010212/).and.include('pix@example.test').and.include('540845900.00');",
 									"    pm.expect(Date.parse(charge.dueAt)).to.be.above(Date.now());",
 									"});",
 									"pm.test('o pagador não volta na resposta', () => pm.expect(pm.response.text()).to.not.include(pm.collectionVariables.get('gatewayPayerCpf')));",
@@ -8430,7 +8437,7 @@
 							}
 						],
 						"url": "{{gatewayUrl}}/charges",
-						"description": "`POST /charges` — o que o `sales` faz no passo 3 da saga. Deve aparecer: `2xx` com `chargeId`, `pixCode` (Pix \"copia e cola\" sintético) e `dueAt`. O id vai para `gatewayChargeId`.",
+						"description": "`POST /charges` — o que o `sales` faz no passo 3 da saga. Deve aparecer: `201` com `chargeId` (`chg_…`), `pixCode` (o \"copia e cola\" no formato BR Code, com a chave fictícia `pix@example.test` e o valor) e `dueAt`. O id vai para `gatewayChargeId`.",
 						"body": {
 							"mode": "raw",
 							"raw": "{\n  \"referenceId\": \"{{gatewayReferenceId}}\",\n  \"amountCents\": 4590000,\n  \"dueAt\": \"{{gatewayDueAt}}\",\n  \"payer\": {\n    \"name\": \"Pagador Sintético\",\n    \"cpf\": \"{{gatewayPayerCpf}}\",\n    \"address\": { \"zipCode\": \"01310000\", \"street\": \"Rua das Amostras\", \"number\": \"100\", \"district\": \"Centro\", \"city\": \"São Paulo\", \"state\": \"SP\" }\n  }\n}",
@@ -8453,7 +8460,7 @@
 								"type": "text/javascript",
 								"exec": [
 									"pm.test('devolve a mesma cobrança', () => {",
-									"    pm.expect(pm.response.code).to.be.oneOf([200, 201]);",
+									"    pm.response.to.have.status(200);",
 									"    pm.expect(pm.response.json().chargeId).to.eql(pm.collectionVariables.get('gatewayChargeId'));",
 									"});"
 								]
@@ -8469,7 +8476,7 @@
 							}
 						],
 						"url": "{{gatewayUrl}}/charges",
-						"description": "O `sales` pode repetir o `POST /charges` depois de um *timeout*. Deve aparecer: a **mesma** cobrança (mesmo `chargeId`).",
+						"description": "O `sales` pode repetir o `POST /charges` depois de um *timeout*. Deve aparecer: `200` com a **mesma** cobrança (mesmo `chargeId`).",
 						"body": {
 							"mode": "raw",
 							"raw": "{\n  \"referenceId\": \"{{gatewayReferenceId}}\",\n  \"amountCents\": 4590000,\n  \"dueAt\": \"{{gatewayDueAt}}\",\n  \"payer\": {\n    \"name\": \"Pagador Sintético\",\n    \"cpf\": \"{{gatewayPayerCpf}}\",\n    \"address\": { \"zipCode\": \"01310000\", \"street\": \"Rua das Amostras\", \"number\": \"100\", \"district\": \"Centro\", \"city\": \"São Paulo\", \"state\": \"SP\" }\n  }\n}",
@@ -8484,6 +8491,45 @@
 					"id": "71fb7c82-40a5-5cd2-91b1-01ad6c3e9d80"
 				},
 				{
+					"name": "Mesmo referenceId com outro valor → 409",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"responde 409 CHARGE_REFERENCE_CONFLICT\", () => {",
+									"    pm.response.to.have.status(409);",
+									"    pm.expect(pm.response.json().code).to.eql('CHARGE_REFERENCE_CONFLICT');",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": "{{gatewayUrl}}/charges",
+						"description": "A mesma referência só serve para repetir o pedido: outro valor é erro do chamador, não uma cobrança nova. Deve aparecer: `409 CHARGE_REFERENCE_CONFLICT`, e a cobrança continua com o valor de antes.",
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"referenceId\": \"{{gatewayReferenceId}}\",\n  \"amountCents\": 4590001,\n  \"dueAt\": \"{{gatewayDueAt}}\",\n  \"payer\": {\n    \"name\": \"Pagador Sintético\",\n    \"cpf\": \"{{gatewayPayerCpf}}\",\n    \"address\": { \"zipCode\": \"01310000\", \"street\": \"Rua das Amostras\", \"number\": \"100\", \"district\": \"Centro\", \"city\": \"São Paulo\", \"state\": \"SP\" }\n  }\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"response": [],
+					"id": "e20c565b-f898-5c5b-a3af-38d82bfe3f2e"
+				},
+				{
 					"name": "Achar pela referência",
 					"event": [
 						{
@@ -8491,12 +8537,15 @@
 							"script": {
 								"type": "text/javascript",
 								"exec": [
-									"const found = pm.response.code === 200 ? pm.response.json() : null;",
-									"const charge = Array.isArray(found) ? found[0] : (found && Array.isArray(found.items) ? found.items[0] : found);",
 									"pm.test('acha a cobrança PENDING', () => {",
 									"    pm.response.to.have.status(200);",
+									"    const charge = pm.response.json();",
 									"    pm.expect(charge.chargeId).to.eql(pm.collectionVariables.get('gatewayChargeId'));",
+									"    pm.expect(charge.referenceId).to.eql(pm.collectionVariables.get('gatewayReferenceId'));",
+									"    pm.expect(charge.amountCents).to.eql(4590000);",
+									"    pm.expect(charge.paidAmountCents).to.eql(null);",
 									"    pm.expect(charge.status).to.eql('PENDING');",
+									"    pm.expect(charge).to.not.have.any.keys('payer');",
 									"});"
 								]
 							}
@@ -8506,10 +8555,35 @@
 						"method": "GET",
 						"header": [],
 						"url": "{{gatewayUrl}}/charges?referenceId={{gatewayReferenceId}}",
-						"description": "A compensação usa esta busca quando a resposta do `POST` se perdeu. Deve aparecer: a cobrança, `status: PENDING`."
+						"description": "A compensação usa esta busca quando a resposta do `POST` se perdeu. Deve aparecer: `200` com a cobrança — `amountCents` 4590000, `status: PENDING`, `paidAmountCents: null` — e nada do pagador."
 					},
 					"response": [],
 					"id": "ef8a6191-aa8a-5e60-8739-4cf39b2234e3"
+				},
+				{
+					"name": "Estornar uma não paga → sem efeito",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('continua PENDING', () => {",
+									"    pm.response.to.have.status(200);",
+									"    pm.expect(pm.response.json().status).to.eql('PENDING');",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": "{{gatewayUrl}}/charges/{{gatewayChargeId}}/refund",
+						"description": "Estorno de cobrança que não foi paga não muda nada nem manda webhook. Deve aparecer: `200` com `status: PENDING`."
+					},
+					"response": [],
+					"id": "7d5476e7-ae32-5ea9-b3b2-15c8f4173306"
 				},
 				{
 					"name": "Cancelar",
@@ -8519,7 +8593,10 @@
 							"script": {
 								"type": "text/javascript",
 								"exec": [
-									"pm.test(\"cancela\", () => pm.expect(pm.response.code).to.be.within(200, 299));"
+									"pm.test('cancela', () => {",
+									"    pm.response.to.have.status(200);",
+									"    pm.expect(pm.response.json().status).to.eql('CANCELLED');",
+									"});"
 								]
 							}
 						}
@@ -8528,7 +8605,7 @@
 						"method": "POST",
 						"header": [],
 						"url": "{{gatewayUrl}}/charges/{{gatewayChargeId}}/cancel",
-						"description": "A compensação do passo 3. Deve aparecer: `2xx`."
+						"description": "A compensação do passo 3. Deve aparecer: `200` com `status: CANCELLED`."
 					},
 					"response": [],
 					"id": "6dbb368a-faf3-5d74-bb3a-7c9ea89b7ad6"
@@ -8541,7 +8618,10 @@
 							"script": {
 								"type": "text/javascript",
 								"exec": [
-									"pm.test(\"cancelar de novo não é erro\", () => pm.expect(pm.response.code).to.be.within(200, 299));"
+									"pm.test('cancelar de novo não é erro', () => {",
+									"    pm.response.to.have.status(200);",
+									"    pm.expect(pm.response.json().status).to.eql('CANCELLED');",
+									"});"
 								]
 							}
 						}
@@ -8550,7 +8630,7 @@
 						"method": "POST",
 						"header": [],
 						"url": "{{gatewayUrl}}/charges/{{gatewayChargeId}}/cancel",
-						"description": "O outbox pode repetir o comando. Deve aparecer: `2xx` de novo, sem erro."
+						"description": "O outbox pode repetir o comando. Deve aparecer: `200` de novo, `status: CANCELLED`, sem erro."
 					},
 					"response": [],
 					"id": "6fd48e2c-84fc-5517-b4f2-a6fb04520fe6"
@@ -8563,9 +8643,7 @@
 							"script": {
 								"type": "text/javascript",
 								"exec": [
-									"const found = pm.response.code === 200 ? pm.response.json() : null;",
-									"const charge = Array.isArray(found) ? found[0] : (found && Array.isArray(found.items) ? found.items[0] : found);",
-									"pm.test('cobrança CANCELLED', () => pm.expect(charge && charge.status).to.eql('CANCELLED'));"
+									"pm.test('cobrança CANCELLED', () => pm.expect(pm.response.json().status).to.eql('CANCELLED'));"
 								]
 							}
 						}
@@ -8580,6 +8658,205 @@
 					"id": "7d58651a-0b16-5d0c-89ae-94a976a4d6a2"
 				},
 				{
+					"name": "Simular com deliveries fora do limite → 400",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"responde 400 VALIDATION_FAILED com deliveries OUT_OF_RANGE\", () => {",
+									"    pm.response.to.have.status(400);",
+									"    const error = pm.response.json();",
+									"    pm.expect(error.code).to.eql('VALIDATION_FAILED');",
+									"    pm.expect(error.fields.map((f) => f.field + ' ' + f.code)).to.include('deliveries OUT_OF_RANGE');",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": "{{gatewayUrl}}/charges/{{gatewayChargeId}}/simulate",
+						"description": "`deliveries` vai de 1 a 3. Deve aparecer: `400 VALIDATION_FAILED` com `deliveries` `OUT_OF_RANGE`, e nada é pago.",
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"outcome\": \"PAID\",\n  \"deliveries\": 4\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"response": [],
+					"id": "4c6412aa-8ff3-5beb-b2a0-a060e5e34475"
+				},
+				{
+					"name": "Pagar a cobrança cancelada (Pix atrasado)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('aceita e manda o CHARGE_PAID', () => {",
+									"    pm.response.to.have.status(202);",
+									"    const simulation = pm.response.json();",
+									"    pm.expect(simulation.eventId).to.match(/^evt_[0-9a-f]{32}$/);",
+									"    pm.expect(simulation.type).to.eql('CHARGE_PAID');",
+									"    pm.expect(simulation.amountCents).to.eql(4590000);",
+									"    pm.expect(simulation.deliveries).to.eql(1);",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": "{{gatewayUrl}}/charges/{{gatewayChargeId}}/simulate",
+						"description": "A simulação paga também a cobrança cancelada: é o Pix que chega depois do prazo (RN-12). Deve aparecer: `202` com `eventId` (`evt_…`), `type: CHARGE_PAID`, o valor e `deliveries: 1`. O webhook vai ao `sales` depois da resposta, assinado (`X-Signature: t=…,v1=…`).",
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"outcome\": \"PAID\",\n  \"deliveries\": 1\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"response": [],
+					"id": "23f51201-2382-5c88-9e09-336624d3da30"
+				},
+				{
+					"name": "Pagar de novo → 409",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"responde 409 CHARGE_NOT_PAYABLE\", () => {",
+									"    pm.response.to.have.status(409);",
+									"    pm.expect(pm.response.json().code).to.eql('CHARGE_NOT_PAYABLE');",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": "{{gatewayUrl}}/charges/{{gatewayChargeId}}/simulate",
+						"description": "Uma cobrança se paga uma vez só. Deve aparecer: `409 CHARGE_NOT_PAYABLE`, e nenhum webhook novo.",
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"outcome\": \"PAID\",\n  \"deliveries\": 1\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"response": [],
+					"id": "89a87164-2d35-5ba0-8c31-2fd0ce43a452"
+				},
+				{
+					"name": "Cancelar a paga → sem efeito",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('continua PAID', () => {",
+									"    pm.response.to.have.status(200);",
+									"    pm.expect(pm.response.json().status).to.eql('PAID');",
+									"    pm.expect(pm.response.json().paidAmountCents).to.eql(4590000);",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": "{{gatewayUrl}}/charges/{{gatewayChargeId}}/cancel",
+						"description": "Depois de paga, cancelar não desfaz o pagamento (isso é o estorno). Deve aparecer: `200` com `status: PAID` e `paidAmountCents` 4590000."
+					},
+					"response": [],
+					"id": "9e9ebe5b-bf17-5bed-96ef-c64830191dfc"
+				},
+				{
+					"name": "Estornar",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('estorna', () => {",
+									"    pm.response.to.have.status(200);",
+									"    pm.expect(pm.response.json().status).to.eql('REFUNDED');",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": "{{gatewayUrl}}/charges/{{gatewayChargeId}}/refund",
+						"description": "O estorno do pagamento atrasado. Deve aparecer: `200` com `status: REFUNDED`; o gateway manda `CHARGE_REFUNDED` ao `sales`."
+					},
+					"response": [],
+					"id": "9b8aca08-a01d-55da-b952-5590cdc15eb2"
+				},
+				{
+					"name": "Estornar de novo (idempotente)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('estornar de novo não é erro', () => {",
+									"    pm.response.to.have.status(200);",
+									"    pm.expect(pm.response.json().status).to.eql('REFUNDED');",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": "{{gatewayUrl}}/charges/{{gatewayChargeId}}/refund",
+						"description": "Deve aparecer: `200` com `status: REFUNDED`, sem outro `CHARGE_REFUNDED`."
+					},
+					"response": [],
+					"id": "62c665a6-8d93-55d3-992d-90dcb01547dd"
+				},
+				{
 					"name": "Cobrança que não existe → 404",
 					"event": [
 						{
@@ -8587,7 +8864,10 @@
 							"script": {
 								"type": "text/javascript",
 								"exec": [
-									"pm.test(\"responde 404\", () => pm.response.to.have.status(404));"
+									"pm.test(\"responde 404 NOT_FOUND\", () => {",
+									"    pm.response.to.have.status(404);",
+									"    pm.expect(pm.response.json().code).to.eql('NOT_FOUND');",
+									"});"
 								]
 							}
 						}
@@ -8596,7 +8876,7 @@
 						"method": "POST",
 						"header": [],
 						"url": "{{gatewayUrl}}/charges/chg_inexistente/cancel",
-						"description": "Deve aparecer: `404`."
+						"description": "Deve aparecer: `404 NOT_FOUND`."
 					},
 					"response": [],
 					"id": "97216bd8-879f-54b9-bacb-5b99930be8fb"
