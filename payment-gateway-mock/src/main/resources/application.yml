@@ -10,3 +10,11 @@ management:
     web:
       exposure:
         include: health
+
+revenda:
+  gateway:
+    api-key: ${GATEWAY_API_KEY}
+    webhook-url: ${WEBHOOK_URL:http://localhost:8083/webhooks/payments}
+    webhook-secret: ${PAYMENT_WEBHOOK_SECRET}
+    webhook-retry-delays: ${WEBHOOK_RETRY_DELAYS:1s,5s,25s}
+    webhook-timeout: ${WEBHOOK_TIMEOUT:2s}
