@@ -159,6 +159,21 @@ GATEWAY_API_KEY="$PAYMENT_GATEWAY_API_KEY" ./mvnw -pl payment-gateway-mock sprin
 No PowerShell, `$env:GATEWAY_API_KEY = $env:PAYMENT_GATEWAY_API_KEY` antes do
 `.\mvnw.cmd -pl payment-gateway-mock spring-boot:run` (o `PAYMENT_WEBHOOK_SECRET` já veio do `.env`).
 
+O `sales-service` por enquanto só tem banco: troque as senhas pelas das *roles* `sales_owner` e `sales_app`
+(no PowerShell, `$env:DB_APP_PASSWORD = $env:SALES_DB_APP_PASSWORD; $env:DB_OWNER_PASSWORD = $env:SALES_DB_OWNER_PASSWORD`
+antes do `.\mvnw.cmd -pl sales-service spring-boot:run`):
+
+```bash
+DB_APP_PASSWORD="$SALES_DB_APP_PASSWORD" DB_OWNER_PASSWORD="$SALES_DB_OWNER_PASSWORD" \
+  ./mvnw -pl sales-service spring-boot:run
+```
+
+Para ver as tabelas que o Flyway criou:
+
+```bash
+docker compose -f infra/docker-compose.yml exec postgres psql -U postgres -d sales -c "\d purchase"
+```
+
 Na subida, o Flyway cria ou atualiza as tabelas com a *role* `_owner` e a aplicação passa a usar a
 `_app`, que só lê e grava dados. No `customers`, o dado pessoal fica em colunas cifradas pela aplicação
 (`*_enc`), o CPF tem um *blind index* (HMAC) para a unicidade, e toda coluna pessoal leva o comentário
@@ -553,6 +568,77 @@ carimbo do momento; quem recebe confere em tempo constante e recusa carimbo a ma
 (`WebhookSignature`, no `common`) assina aqui e confere no `sales`. Sem `2xx` do `sales`, o gateway reentrega
 até 3 vezes, depois de 1 s, 5 s e 25 s (`WEBHOOK_RETRY_DELAYS`), e então desiste e registra no log. A fila de
 reentrega é em memória.
+
+### A compra e a saga
+
+O `sales-service` é o dono da compra e orquestra a saga entre o estoque, o cadastro e o gateway. As rotas
+entram nas próximas etapas; já estão prontos o banco e a máquina de estados da compra.
+
+**O que o `sales` guarda.** Só ids, centavos, instantes e o `sub` da conta do comprador — nunca nome, CPF,
+e-mail, telefone ou endereço. Quando precisa do dado do pagador (cobrança) ou do comprador (documento), pede ao
+`customers` na hora, usa e não grava. O `sub` (`customer_subject`, a única coluna com o comentário `[pessoal]`)
+serve para responder `404` à compra de outra pessoa sem chamar o `customers`.
+
+**Estados.** A compra tem um status e, à parte, o status do pagamento: uma compra expirada que recebe um Pix
+atrasado continua expirada, e só o pagamento anda para o estorno.
+
+```mermaid
+stateDiagram-v2
+    [*] --> PENDING : cliente pede
+    PENDING --> REJECTED : veículo de outra compra
+    PENDING --> FAILED : estoque sem resposta / recuperação
+    PENDING --> RESERVED : veículo reservado (preço fixado)
+    RESERVED --> FAILED : cobrança não emitida / recuperação
+    RESERVED --> AWAITING_PAYMENT : código emitido
+    AWAITING_PAYMENT --> PAID : webhook com o valor cobrado
+    AWAITING_PAYMENT --> FAILED : webhook com outro valor (estorno)
+    AWAITING_PAYMENT --> EXPIRED : prazo vencido
+    AWAITING_PAYMENT --> CANCELLED : desistência
+    PAID --> CANCELLED : desistência (estorno)
+    PAID --> COMPLETED : retirada
+```
+
+| Gatilho | Compra | Pagamento | `closed_reason` |
+|---|---|---|---|
+| pedido | `PENDING` | `NONE` | — |
+| reserva recusada / sem resposta | `REJECTED` / `FAILED` | `NONE` | `VEHICLE_UNAVAILABLE` / `RESERVATION_FAILED` |
+| reservado (o preço da compra é o da reserva) | `RESERVED` | `NONE` | — |
+| cobrança emitida / não emitida | `AWAITING_PAYMENT` / `FAILED` | `PENDING` / `NONE` | — / `CHARGE_FAILED` |
+| parada há mais de 2 min em `PENDING`/`RESERVED` | `FAILED` | `NONE` | `RECOVERY_TIMEOUT` |
+| pago com o valor cobrado (mesmo depois do vencimento, se a varredura ainda não expirou) | `PAID` | `PAID` | — |
+| pago com outro valor | `FAILED` | `REFUND_REQUESTED` | `PAYMENT_MISMATCH` |
+| prazo vencido | `EXPIRED` | `CANCELLED` | `PAYMENT_EXPIRED` |
+| desistência antes / depois de pagar | `CANCELLED` | `CANCELLED` / `REFUND_REQUESTED` | `CUSTOMER_GAVE_UP` |
+| retirada | `COMPLETED` | `PAID` | — |
+| pagamento de compra já encerrada | não muda | `REFUND_REQUESTED` | não muda |
+| estorno confirmado | não muda | `REFUNDED` | não muda |
+
+O que pode chegar fora de hora:
+
+- **Desistir durante a reserva** → `409 PURCHASE_IN_PROGRESS` (dura segundos).
+- **Desistir de compra encerrada ou retirada** → `409 PURCHASE_NOT_CANCELLABLE`.
+- **Retirada de compra que não está paga** → `409 PURCHASE_NOT_PAID`.
+- **Evento do gateway ou varredura que acha a compra já mudada:** não fazem nada. É o webhook repetido, o
+  estorno já confirmado, a expiração da compra que acabou de ser paga.
+- **`PAYMENT_EVENT_NOT_YET_APPLICABLE`:** pagamento que chega antes de a compra registrar a cobrança. O webhook
+  não responde `2xx` e o gateway entrega de novo.
+- **`PAYMENT_EVENT_CONTRADICTORY`:** evento de outra cobrança, ou estorno que ninguém pediu.
+
+Esses dois últimos códigos aparecem só no log.
+
+**Tabelas.**
+
+| Tabela | O quê |
+|---|---|
+| `purchase` | a compra; `CHECK` em cada status e motivo, preço obrigatório depois da reserva, cobrança obrigatória em `AWAITING_PAYMENT` |
+| `purchase_transition` | a linha do tempo: uma linha por mudança, com o ator, inclusive quando só o pagamento muda; a aplicação só insere |
+| `outbox_message` | os comandos para o estoque e o gateway, gravados na transação da mudança |
+| `processed_message` | os `eventId` do webhook já aplicados |
+| `audit_log`, `idempotency_key` | auditoria (só inserção) e a idempotência do `POST /purchases` |
+
+Três índices únicos parciais garantem as regras no próprio banco: uma compra ativa (`PENDING`, `RESERVED`,
+`AWAITING_PAYMENT`) por cliente; um dono por veículo (`RESERVED` em diante, menos as encerradas); uma compra por
+cobrança. Toda mudança de compra trava a linha (`SELECT … FOR UPDATE`) e grava sobre a versão travada.
 
 ## Usuários sintéticos
 
