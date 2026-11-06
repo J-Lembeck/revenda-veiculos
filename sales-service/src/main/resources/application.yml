@@ -9,6 +9,18 @@ spring:
     url: ${DB_URL:jdbc:postgresql://localhost:5440/sales}
     user: ${DB_OWNER_USER:sales_owner}
     password: ${DB_OWNER_PASSWORD}
+  security:
+    oauth2:
+      client:
+        registration:
+          sales-service:
+            provider: revenda
+            client-id: ${OIDC_CLIENT_ID:sales-service}
+            client-secret: ${OIDC_CLIENT_SECRET}
+            authorization-grant-type: client_credentials
+        provider:
+          revenda:
+            token-uri: ${OIDC_TOKEN_URI:http://localhost:8180/realms/revenda/protocol/openid-connect/token}
 
 server:
   port: 8083
@@ -27,3 +39,42 @@ revenda:
       scope-prefix: ${OIDC_SCOPE_PREFIX:}
       web-clients: ${OIDC_WEB_CLIENTS:revenda-web}
       service-clients: ${OIDC_SERVICE_CLIENTS:customers-service}
+  sales:
+    payment-window: ${PAYMENT_WINDOW:PT30M}
+    recovery-threshold: ${SAGA_RECOVERY_THRESHOLD:PT2M}
+    sweep-interval: ${SAGA_SWEEP_INTERVAL:30s}
+    webhook-tolerance: ${WEBHOOK_TOLERANCE:PT5M}
+    webhook-secret: ${PAYMENT_WEBHOOK_SECRET}
+    jobs-enabled: ${SALES_JOBS_ENABLED:true}
+  outbox:
+    poll-interval: ${OUTBOX_POLL_INTERVAL:1s}
+    max-attempts: ${OUTBOX_MAX_ATTEMPTS:10}
+  neighbors:
+    vehicles-url: ${VEHICLES_BASE_URL:http://localhost:8081}
+    customers-url: ${CUSTOMERS_BASE_URL:http://localhost:8082}
+    gateway-url: ${PAYMENT_GATEWAY_BASE_URL:http://localhost:8084}
+    gateway-api-key: ${PAYMENT_GATEWAY_API_KEY}
+    connect-timeout: ${HTTP_CONNECT_TIMEOUT:2s}
+    read-timeout: ${HTTP_READ_TIMEOUT:2s}
+  vehicle-commands:
+    queue-url: ${VEHICLE_COMMANDS_QUEUE_URL:http://localhost:4566/000000000000/vehicle-commands.fifo}
+  openapi:
+    title: Compras
+    description: >-
+      A compra de um veículo de ponta a ponta, orquestrada como saga: reservar, receber o código Pix, pagar (pelo aviso
+      assinado do gateway), desistir e acompanhar. Dinheiro sempre em centavos inteiros (`priceCents`), instantes em
+      ISO-8601 UTC, erros no formato `ApiError` com `code` estável.
+    authorization-url: ${OIDC_AUTHORIZATION_URI:http://localhost:8180/realms/revenda/protocol/openid-connect/auth}
+    token-url: ${OIDC_TOKEN_URI:http://localhost:8180/realms/revenda/protocol/openid-connect/token}
+
+springdoc:
+  default-produces-media-type: application/json
+  override-with-generic-response: false
+  api-docs:
+    enabled: ${OPENAPI_ENABLED:true}
+  swagger-ui:
+    enabled: ${OPENAPI_ENABLED:true}
+    oauth:
+      client-id: ${OIDC_SWAGGER_CLIENT_ID:revenda-web}
+      use-pkce-with-authorization-code-grant: true
+      scopes: openid

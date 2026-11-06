@@ -1,0 +1,14 @@
+spring:
+  security:
+    oauth2:
+      client:
+        registration:
+          sales-service:
+            client-secret: ${random.uuid}
+
+revenda:
+  sales:
+    jobs-enabled: false
+    webhook-secret: ${random.uuid}
+  neighbors:
+    gateway-api-key: ${random.uuid}

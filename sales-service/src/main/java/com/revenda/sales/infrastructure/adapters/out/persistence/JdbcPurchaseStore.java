@@ -1,7 +1,10 @@
 package com.revenda.sales.infrastructure.adapters.out.persistence;
 
 import com.revenda.common.jdbc.Transactions;
+import com.revenda.common.jdbc.UniqueKeys;
 import com.revenda.common.money.Money;
+import com.revenda.common.paging.Page;
+import com.revenda.common.paging.Paging;
 import com.revenda.common.security.ActorContext;
 import com.revenda.common.security.ActorContextHolder;
 import com.revenda.common.security.ActorType;
@@ -10,15 +13,20 @@ import com.revenda.sales.domain.model.ClosedReason;
 import com.revenda.sales.domain.model.PaymentStatus;
 import com.revenda.sales.domain.model.Purchase;
 import com.revenda.sales.domain.model.PurchaseChange;
+import com.revenda.sales.domain.model.PurchaseFilter;
 import com.revenda.sales.domain.model.PurchaseStatus;
 import com.revenda.sales.domain.model.PurchaseTransition;
+import com.revenda.sales.domain.model.SalesError;
 import com.revenda.sales.domain.model.TransitionReason;
 import com.revenda.sales.domain.ports.out.LoadPurchasePort;
 import com.revenda.sales.domain.ports.out.LockPurchasePort;
 import com.revenda.sales.domain.ports.out.SavePurchasePort;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.time.Instant;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import javax.sql.DataSource;
@@ -35,12 +43,16 @@ import org.springframework.stereotype.Repository;
 @RequiredArgsConstructor
 class JdbcPurchaseStore implements SavePurchasePort, LoadPurchasePort, LockPurchasePort {
 
-    private static final String PURCHASE = """
+    private static final String COLUMNS = """
             SELECT id, customer_id, customer_subject, vehicle_id, price_cents, status, payment_status, charge_id,
                    payment_code, payment_due_at, paid_at, paid_amount_cents, completed_at, closed_reason, document_key,
                    version, created_at, updated_at
               FROM purchase
-             WHERE id = :id""";
+            """;
+    private static final String PURCHASE = COLUMNS + " WHERE id = :id";
+
+    private static final Map<String, SalesError> UNIQUE_KEYS = Map.of(
+            "purchase_one_active_per_customer", SalesError.ACTIVE_PURCHASE_EXISTS);
 
     private final DataSource dataSource;
     private final JdbcClient jdbc;
@@ -49,7 +61,7 @@ class JdbcPurchaseStore implements SavePurchasePort, LoadPurchasePort, LockPurch
     public void create(PurchaseChange requested) {
         Transactions.requireOpen(dataSource, "A compra só é gravada dentro da transação da mudança");
         Purchase purchase = requested.purchase();
-        withState(jdbc.sql("""
+        UniqueKeys.translating(UNIQUE_KEYS, () -> withState(jdbc.sql("""
                         INSERT INTO purchase (id, customer_id, customer_subject, vehicle_id, price_cents, status,
                                               payment_status, charge_id, payment_code, payment_due_at, paid_at,
                                               paid_amount_cents, completed_at, closed_reason, document_key, version,
@@ -61,8 +73,20 @@ class JdbcPurchaseStore implements SavePurchasePort, LoadPurchasePort, LockPurch
                 .param("customerSubject", purchase.customerSubject())
                 .param("vehicleId", purchase.vehicleId())
                 .param("createdAt", SqlTime.utc(purchase.createdAt()))
-                .update();
+                .update());
         record(requested.transition());
+    }
+
+    @Override
+    public boolean existsActiveFor(UUID customerId) {
+        return jdbc.sql("""
+                        SELECT EXISTS (SELECT 1
+                                         FROM purchase
+                                        WHERE customer_id = :customerId
+                                          AND status IN ('PENDING', 'RESERVED', 'AWAITING_PAYMENT'))""")
+                .param("customerId", customerId)
+                .query(Boolean.class)
+                .single();
     }
 
     @Override
@@ -95,6 +119,54 @@ class JdbcPurchaseStore implements SavePurchasePort, LoadPurchasePort, LockPurch
     public Optional<Purchase> lock(UUID id) {
         Transactions.requireOpen(dataSource, "A compra só é travada dentro de uma transação");
         return jdbc.sql(PURCHASE + " FOR UPDATE").param("id", id).query((row, index) -> purchase(row)).optional();
+    }
+
+    @Override
+    public Optional<Purchase> lockNextOverdue(Instant now) {
+        Transactions.requireOpen(dataSource, "A compra só é travada dentro de uma transação");
+        return jdbc.sql(COLUMNS + """
+                         WHERE status = 'AWAITING_PAYMENT' AND payment_due_at < :now
+                         ORDER BY payment_due_at
+                         LIMIT 1
+                           FOR UPDATE SKIP LOCKED""")
+                .param("now", SqlTime.utc(now))
+                .query((row, index) -> purchase(row))
+                .optional();
+    }
+
+    @Override
+    public Optional<Purchase> lockNextStalled(Instant updatedBefore) {
+        Transactions.requireOpen(dataSource, "A compra só é travada dentro de uma transação");
+        return jdbc.sql(COLUMNS + """
+                         WHERE status IN ('PENDING', 'RESERVED') AND updated_at < :updatedBefore
+                         ORDER BY updated_at
+                         LIMIT 1
+                           FOR UPDATE SKIP LOCKED""")
+                .param("updatedBefore", SqlTime.utc(updatedBefore))
+                .query((row, index) -> purchase(row))
+                .optional();
+    }
+
+    @Override
+    public Page<Purchase> findPage(PurchaseFilter filter, Paging paging) {
+        StringBuilder where = new StringBuilder(" WHERE TRUE");
+        Map<String, Object> params = new HashMap<>();
+        if (filter.customerSubject() != null) {
+            where.append(" AND customer_subject = :customerSubject");
+            params.put("customerSubject", filter.customerSubject());
+        }
+        if (filter.status() != null) {
+            where.append(" AND status = :status");
+            params.put("status", filter.status().name());
+        }
+        long total = jdbc.sql("SELECT count(*) FROM purchase" + where).params(params).query(Long.class).single();
+        List<Purchase> items = jdbc.sql(COLUMNS + where + " ORDER BY created_at DESC, id DESC LIMIT :limit OFFSET :offset")
+                .params(params)
+                .param("limit", paging.size())
+                .param("offset", paging.offset())
+                .query((row, index) -> purchase(row))
+                .list();
+        return Page.of(items, paging, total);
     }
 
     @Override
