@@ -1,7 +1,7 @@
 package com.revenda.vehicles.domain.ports.out;
 
-import com.revenda.vehicles.domain.model.Page;
-import com.revenda.vehicles.domain.model.Paging;
+import com.revenda.common.paging.Page;
+import com.revenda.common.paging.Paging;
 import com.revenda.vehicles.domain.model.ShowcaseFilter;
 import com.revenda.vehicles.domain.model.Vehicle;
 import java.util.Optional;

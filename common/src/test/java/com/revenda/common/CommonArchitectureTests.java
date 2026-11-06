@@ -12,10 +12,12 @@ import com.tngtech.archunit.lang.ArchRule;
 class CommonArchitectureTests {
 
     @ArchTest
-    static final ArchRule moneyAndErrorsArePlainJavaForTheDomain = classes()
-            .that().resideInAnyPackage("com.revenda.common.money..", "com.revenda.common.error")
+    static final ArchRule moneyErrorsAndPagingArePlainJavaForTheDomain = classes()
+            .that().resideInAnyPackage("com.revenda.common.money..", "com.revenda.common.error",
+                    "com.revenda.common.paging")
             .should().onlyDependOnClassesThat()
-            .resideInAnyPackage("java..", "lombok..", "com.revenda.common.money..", "com.revenda.common.error");
+            .resideInAnyPackage("java..", "lombok..", "com.revenda.common.money..", "com.revenda.common.error",
+                    "com.revenda.common.paging");
 
     @ArchTest
     static final ArchRule commonKnowsNoService = noClasses()

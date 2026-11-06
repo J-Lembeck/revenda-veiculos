@@ -8,6 +8,16 @@ import lombok.RequiredArgsConstructor;
 @Getter
 @RequiredArgsConstructor
 public enum SalesError implements ErrorCode {
+    VEHICLE_UNAVAILABLE(ErrorKind.CONFLICT,
+            "Este veículo acabou de ser reservado por outra pessoa. Escolha outro ou volte mais tarde."),
+    ACTIVE_PURCHASE_EXISTS(ErrorKind.CONFLICT,
+            "Você já tem uma compra em andamento. Pague ou desista dela antes de começar outra."),
+    CUSTOMER_PROFILE_REQUIRED(ErrorKind.UNPROCESSABLE,
+            "Complete o seu cadastro de comprador antes de comprar."),
+    CUSTOMER_UNDERAGE(ErrorKind.UNPROCESSABLE,
+            "A compra de veículo é só para quem tem 18 anos ou mais."),
+    INVALID_SIGNATURE(ErrorKind.UNAUTHENTICATED,
+            "A assinatura do aviso de pagamento não confere ou está vencida."),
     PURCHASE_IN_PROGRESS(ErrorKind.CONFLICT,
             "A compra ainda está reservando o veículo ou emitindo a cobrança. Tente de novo em instantes."),
     PURCHASE_NOT_CANCELLABLE(ErrorKind.CONFLICT,

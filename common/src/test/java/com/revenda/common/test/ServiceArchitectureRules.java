@@ -47,8 +47,10 @@ public final class ServiceArchitectureRules {
     public static final ArchRule domainIsPlainJava = classes()
             .that().resideInAPackage(DOMAIN)
             .should().onlyDependOnClassesThat()
-            .resideInAnyPackage("java..", "lombok..", DOMAIN, "com.revenda.common.money..", "com.revenda.common.error")
-            .because("o domínio é Java puro: só o próprio domínio e as partes puras do common (dinheiro e erro)")
+            .resideInAnyPackage("java..", "lombok..", DOMAIN, "com.revenda.common.money..", "com.revenda.common.error",
+                    "com.revenda.common.paging")
+            .because("o domínio é Java puro: só o próprio domínio e as partes puras do common (dinheiro, erro e "
+                    + "paginação)")
             .allowEmptyShould(true);
 
     @ArchTest

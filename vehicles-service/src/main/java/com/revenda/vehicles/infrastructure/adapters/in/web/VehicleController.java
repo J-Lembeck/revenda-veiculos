@@ -1,5 +1,7 @@
 package com.revenda.vehicles.infrastructure.adapters.in.web;
 
+import com.revenda.common.paging.web.PageParams;
+import com.revenda.common.paging.web.PageResponse;
 import com.revenda.common.security.ActorContext;
 import com.revenda.common.security.ActorContextHolder;
 import com.revenda.common.security.ActorType;

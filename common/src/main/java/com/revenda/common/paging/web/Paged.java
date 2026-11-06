@@ -1,6 +1,6 @@
-package com.revenda.vehicles.infrastructure.adapters.in.web;
+package com.revenda.common.paging.web;
 
-import com.revenda.vehicles.domain.model.Paging;
+import com.revenda.common.paging.Paging;
 import jakarta.validation.Constraint;
 import jakarta.validation.Payload;
 import jakarta.validation.constraints.Max;
@@ -11,7 +11,7 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /** A consulta de uma listagem paginada ({@code ?page=0&size=20}); cada uma declara os dois com estas regras. */
-interface Paged {
+public interface Paged {
 
     Integer page();
 

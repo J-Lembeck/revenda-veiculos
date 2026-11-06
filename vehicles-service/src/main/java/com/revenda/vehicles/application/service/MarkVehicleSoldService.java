@@ -3,13 +3,13 @@ package com.revenda.vehicles.application.service;
 import com.revenda.common.audit.AuditEntry;
 import com.revenda.common.audit.AuditRecorder;
 import com.revenda.common.error.BusinessException;
+import com.revenda.common.messaging.ProcessedMessages;
 import com.revenda.vehicles.domain.model.Vehicle;
 import com.revenda.vehicles.domain.model.VehiclesError;
 import com.revenda.vehicles.domain.ports.in.MarkVehicleSoldCommand;
 import com.revenda.vehicles.domain.ports.in.MarkVehicleSoldUseCase;
 import com.revenda.vehicles.domain.ports.in.VehicleCommandOutcome;
 import com.revenda.vehicles.domain.ports.out.LoadVehiclePort;
-import com.revenda.vehicles.domain.ports.out.SaveProcessedMessagePort;
 import com.revenda.vehicles.domain.ports.out.SaveVehiclePort;
 import java.time.Clock;
 import java.time.Instant;
@@ -22,7 +22,7 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class MarkVehicleSoldService implements MarkVehicleSoldUseCase {
 
-    private final SaveProcessedMessagePort processed;
+    private final ProcessedMessages processed;
     private final SaveVehiclePort vehicles;
     private final LoadVehiclePort stock;
     private final AuditRecorder audit;
@@ -32,7 +32,7 @@ public class MarkVehicleSoldService implements MarkVehicleSoldUseCase {
     @Transactional
     public VehicleCommandOutcome markSold(MarkVehicleSoldCommand command) {
         Instant now = clock.instant();
-        if (!processed.markProcessed(command.messageId(), SaveProcessedMessagePort.VEHICLE_COMMANDS, now)) {
+        if (!processed.markProcessed(command.messageId().toString(), VehicleCommandSource.VEHICLE_COMMANDS, now)) {
             return VehicleCommandOutcome.DUPLICATE;
         }
         if (vehicles.markSoldIfReservedBy(command.vehicleId(), command.purchaseId(), command.soldPrice(),

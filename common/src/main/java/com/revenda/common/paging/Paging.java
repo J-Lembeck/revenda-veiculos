@@ -1,4 +1,4 @@
-package com.revenda.vehicles.domain.model;
+package com.revenda.common.paging;
 
 /** Qual página de uma listagem: a partir de 0, com até {@link #MAX_SIZE} itens. */
 public record Paging(int page, int size) {
