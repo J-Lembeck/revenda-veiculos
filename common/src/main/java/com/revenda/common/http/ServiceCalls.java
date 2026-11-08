@@ -1,15 +1,15 @@
-package com.revenda.sales.infrastructure.adapters.out.http;
+package com.revenda.common.http;
 
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.client.RestClientResponseException;
 
 /** O que toda chamada a vizinho respeita: nenhuma sai com transação aberta, e o erro vai ao log sem o corpo. */
-final class NeighborCalls {
+public final class ServiceCalls {
 
-    private NeighborCalls() {
+    private ServiceCalls() {
     }
 
-    static void requireNoTransaction(String neighbor) {
+    public static void requireNoTransaction(String neighbor) {
         if (TransactionSynchronizationManager.isActualTransactionActive()) {
             throw new IllegalStateException("Chamada ao " + neighbor
                     + " com transação aberta: grave, faça o commit e só então chame");
@@ -17,7 +17,7 @@ final class NeighborCalls {
     }
 
     /** A classe da falha e, se houve resposta, o status — nunca o corpo nem a mensagem, que podem trazer dado. */
-    static String describe(RuntimeException failure) {
+    public static String describe(RuntimeException failure) {
         if (failure instanceof RestClientResponseException response) {
             return failure.getClass().getSimpleName() + " " + response.getStatusCode().value();
         }

@@ -54,6 +54,7 @@ revenda:
     sweep-interval: ${SAGA_SWEEP_INTERVAL:30s}
     webhook-tolerance: ${WEBHOOK_TOLERANCE:PT5M}
     webhook-secret: ${PAYMENT_WEBHOOK_SECRET}
+    retention-after-sale: ${RETENTION_AFTER_SALE:P5Y}
     jobs-enabled: ${SALES_JOBS_ENABLED:true}
   outbox:
     poll-interval: ${OUTBOX_POLL_INTERVAL:1s}

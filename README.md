@@ -155,7 +155,9 @@ cifrados pela aplicação (AES-256-GCM, com a chave em envelope pelo KMS); o CPF
 unicidade e a conferência sem decifrar. O `sales` guarda só ids e pede o dado na hora em que precisa — cobrança e
 documento —, sem gravar. Respostas e log mostram CPF, e-mail e telefone mascarados; o CPF inteiro só o
 administrador vê, com motivo, e cada revelação é auditada. Toda ação que muda estado e toda leitura de dado
-completo grava auditoria na mesma transação, numa tabela em que a aplicação só insere.
+completo grava auditoria na mesma transação, numa tabela em que a aplicação só insere. O titular exporta o que o
+cadastro guarda sobre ele e pede a exclusão: sem venda no prazo legal de guarda, o cadastro é anonimizado na hora;
+com venda, no fim do prazo. Detalhes em [LGPD: exportar e excluir os próprios dados](#lgpd-exportar-e-excluir-os-próprios-dados).
 
 ## Decisões principais
 
@@ -243,6 +245,7 @@ contagens:
 | `outbox_messages_failed{destination}` e `outbox_messages_oldest_age_seconds{destination}` | comandos que desistiram depois de todas as tentativas e há quanto tempo espera o mais antigo |
 | `vehicles_reservations_total{outcome}` | pedidos de reserva: reservados, repetidos pela mesma compra, recusados |
 | `customers_cpf_reveals_total` | revelações de CPF pelo administrador |
+| `customers_anonymizations_total{trigger}` | cadastros anonimizados: a pedido do titular (`request`) ou pelo job no fim do prazo de guarda (`retention`) |
 
 As contagens lidas do banco (compras por status e outbox) são refeitas no máximo a cada 15 segundos, para a coleta
 não virar uma consulta.
@@ -413,12 +416,16 @@ $env:DB_APP_PASSWORD = $env:VEHICLES_DB_APP_PASSWORD; $env:DB_OWNER_PASSWORD = $
 
 O `customers-service` também tem banco e também fala com a AWS: usa o KMS do LocalStack (a chave
 `alias/customers-data`, padrão de `KMS_CUSTOMER_KEY_ID`) e precisa das mesmas variáveis do SDK do
-`vehicles` — sem elas não sobe. No mesmo terminal, troque só as senhas das *roles* (no PowerShell,
-`$env:DB_APP_PASSWORD = $env:CUSTOMERS_DB_APP_PASSWORD; $env:DB_OWNER_PASSWORD = $env:CUSTOMERS_DB_OWNER_PASSWORD`
-antes do `.\mvnw.cmd -pl customers-service spring-boot:run`):
+`vehicles` — sem elas não sobe. Para o pedido de exclusão, ele pergunta ao `sales` até quando guardar os dados, com
+o token do próprio cliente de serviço no Keycloak. No mesmo terminal, troque as senhas das *roles* e passe o segredo
+desse cliente (no PowerShell,
+`$env:DB_APP_PASSWORD = $env:CUSTOMERS_DB_APP_PASSWORD; $env:DB_OWNER_PASSWORD = $env:CUSTOMERS_DB_OWNER_PASSWORD;
+$env:OIDC_CLIENT_SECRET = $env:CUSTOMERS_SERVICE_CLIENT_SECRET` antes do
+`.\mvnw.cmd -pl customers-service spring-boot:run`):
 
 ```bash
 DB_APP_PASSWORD="$CUSTOMERS_DB_APP_PASSWORD" DB_OWNER_PASSWORD="$CUSTOMERS_DB_OWNER_PASSWORD" \
+  OIDC_CLIENT_SECRET="$CUSTOMERS_SERVICE_CLIENT_SECRET" \
   ./mvnw -pl customers-service spring-boot:run
 ```
 
@@ -519,6 +526,8 @@ conferido, e a equipe logada vê o detalhe completo do veículo.
 | `customers` | `PATCH /customers/me` | `CUSTOMER` | o comprador muda o próprio nome, telefone e endereço |
 | `customers` | `GET /customers/{id}` | `SELLER`, `ADMIN` | a equipe vê o cliente com o mínimo, mascarado |
 | `customers` | `POST /customers/{id}/cpf-reveal` | `ADMIN` | o administrador vê o CPF completo, com motivo, e a revelação é auditada |
+| `customers` | `GET /customers/me/export` | `CUSTOMER` | o titular leva tudo o que o cadastro guarda sobre ele e quem acessou o dado (LGPD) |
+| `customers` | `POST /customers/me/deletion` | `CUSTOMER` | o titular pede a exclusão: anonimiza na hora ou no fim do prazo de guarda (LGPD) |
 | `customers` | `GET /internal/customers/by-subject/{sub}/eligibility` | serviço com *scope* `customers.read-payer` | se a conta pode comprar: cadastro ativo e 18 anos ou mais |
 | `customers` | `GET /internal/customers/{id}/payer` | serviço com *scope* `customers.read-payer` | nome, CPF e endereço para a cobrança, com a leitura auditada |
 | `customers` | `GET /internal/customers/{id}/transfer-data` | serviço com *scope* `customers.read-payer` | nome, CPF, e-mail e endereço para o documento, com a leitura auditada |
@@ -529,6 +538,7 @@ conferido, e a equipe logada vê o detalhe completo do veículo.
 | `sales` | `POST /purchases/{id}/pickup` | `SELLER`, `ADMIN` | confirma a retirada da compra paga, com o CPF do documento apresentado conferido |
 | `sales` | `GET /purchases/{id}/document` | dono, `SELLER`, `ADMIN` | link de 5 minutos para baixar o documento de transferência (PDF) |
 | `sales` | `POST /webhooks/payments` | gateway (assinatura HMAC) | aviso de pagamento e de estorno |
+| `sales` | `GET /internal/customers/{id}/retention` | serviço com *scope* `sales.read-retention` | até quando a lei pede guardar os dados do cliente, pelas compras dele |
 | `payment-gateway-mock` | `POST /charges` | chave de API (`X-Api-Key`) | cria a cobrança Pix da compra, uma por `referenceId` |
 | `payment-gateway-mock` | `GET /charges?referenceId=…` | chave de API | acha a cobrança de uma compra |
 | `payment-gateway-mock` | `POST /charges/{id}/cancel` | chave de API | cancela a cobrança pendente (repetir não é erro) |
@@ -800,6 +810,58 @@ CPF que o comprador apresentou na loja, só com números ou com pontos e traço:
 - Cada conferência grava `CUSTOMER_CPF_CHECKED` com o serviço, a compra e o resultado (`"matches": true`),
   nunca o CPF. Não cria nada, então não pede `Idempotency-Key`.
 
+### LGPD: exportar e excluir os próprios dados
+
+O titular (papel `CUSTOMER`) exerce dois direitos do art. 18 da LGPD pelas rotas da própria conta. A equipe não
+usa estas rotas (`403`).
+
+**Exportar** (acesso e portabilidade). `GET /customers/me/export` devolve tudo o que o cadastro guarda sobre a
+conta do token:
+
+```json
+{ "exportedAt": "2026-11-08T13:05:21Z",
+  "customer": { "id": "3f2b8c4e-…", "fullName": "Maria Exemplo da Silva", "cpfMasked": "***.982.247-**",
+                "email": "maria.exemplo@example.test", "phone": "+5511999990000", "birthDate": "1990-05-17",
+                "address": { "zipCode": "01001000", "street": "Praça da Sé", "…": "…" }, "status": "ACTIVE",
+                "createdAt": "…", "updatedAt": "…", "deletionRequestedAt": null },
+  "history": [
+    { "at": "…", "action": "CUSTOMER_REGISTERED", "actor": "OWNER", "summary": "…" },
+    { "at": "…", "action": "CUSTOMER_PAYER_DATA_READ", "actor": "SERVICE", "service": "sales-service",
+      "purchaseId": "0b7e4c1a-…", "summary": "…" },
+    { "at": "…", "action": "CUSTOMER_CPF_REVEALED", "actor": "STAFF", "role": "ADMIN",
+      "reason": "Conferência do contrato de venda", "summary": "…" } ],
+  "elsewhere": [ "As compras ficam no serviço de vendas: GET /purchases, …", "…" ] }
+```
+
+- E-mail, telefone, nascimento e endereço vêm em claro; o **CPF vem mascarado**, como no `GET /customers/me`: quem
+  tomar a conta não leva o CPF, e o inteiro é o que o próprio titular informou.
+- O histórico é a auditoria sobre o cadastro: quem leu ou mudou o dado — o próprio titular, a equipe com o papel, o
+  serviço de vendas com a compra —, quando e por quê, sem a identidade de quem fez.
+- Cada exportação grava `CUSTOMER_EXPORTED`; a resposta não fica em cache (`no-store`).
+
+**Excluir** (eliminação). `POST /customers/me/deletion`, sem corpo. O `customers` pergunta ao `sales`, com o token de
+serviço dele (*scope* `sales.read-retention`), até quando a lei pede guardar os dados
+(`GET /internal/customers/{id}/retention` → `{ "retainUntil": "…" | null }`):
+
+- Venda concluída: os dados ficam **5 anos depois da venda** mais recente (`RETENTION_AFTER_SALE`, padrão `P5Y`),
+  o prazo dos registros fiscais e de reparação ao consumidor. Compra ainda aberta (`PENDING` a `PAID`) conta como se
+  terminasse agora, porque ainda pode virar venda. Sem nenhuma das duas, `retainUntil` é nulo.
+- Nada a guardar (ou prazo já vencido) → **anonimiza na hora**, `200 { "status": "ANONYMIZED", "anonymizedAt" }`:
+  nome, CPF (e o *blind index*), e-mail, telefone, nascimento, endereço e o vínculo com a conta são apagados; o `id`
+  fica, porque as compras apontam para ele. A conta pode se cadastrar de novo depois.
+- Venda no prazo → o pedido fica registrado e a resposta é `409 CUSTOMER_HAS_RETAINED_DATA`, com a data da
+  anonimização na `message`. Repetir o pedido não muda nada.
+- `sales` fora do ar → `503 DEPENDENCY_UNAVAILABLE`, e nada muda.
+- A auditoria grava `CUSTOMER_DELETION_REQUESTED` e, ao anonimizar, `CUSTOMER_ANONYMIZED`.
+
+**O job de retenção** roda todo dia às 3h de São Paulo (`CUSTOMERS_RETENTION_CRON`, `0 0 3 * * *`): para cada pedido
+agendado, pergunta de novo ao `sales` — uma compra cancelada encurta o prazo, uma venda nova o estende — e anonimiza
+o que venceu, como `SYSTEM`. Com o `sales` fora do ar, para e tenta no dia seguinte. Cadastro sem pedido de exclusão
+nunca é tocado.
+
+As compras continuam no `sales` depois da anonimização, com o `customerId` e o `sub` da conta: são o registro legal
+da venda. Na nuvem, quando o titular apaga a conta no Cognito, esse `sub` deixa de apontar para alguém.
+
 ### O gateway de pagamento simulado
 
 O `payment-gateway-mock` faz o papel do provedor de Pix: o `sales` cria a cobrança, mostra o código ao
@@ -1041,10 +1103,9 @@ requisição para a outra pelas variáveis da coleção (`vehicleId`, `customerI
 - Toda resposta dos serviços passa pelos testes `[contrato]`: `X-Request-Id` no cabeçalho, erro no
   formato `{ code, message, requestId, fields }` com o mesmo `requestId`, dinheiro em centavos inteiros.
 
-Com os quatro serviços de pé, passam inteiras todas as pastas menos a **08 · LGPD** e a requisição da retenção
-na **10** (`GET /internal/customers/…/retention`, do `sales`): exportar os próprios dados, pedir a exclusão e a
-retenção ainda não estão implementadas e respondem `404` (ou `403` na rota interna não declarada). Os testes dessas
-requisições falham até elas existirem.
+Com os quatro serviços de pé, passam inteiras todas as pastas. Na **08 · LGPD**, a Ana tem a venda da pasta 05, então
+o pedido de exclusão dela fica agendado (`409 CUSTOMER_HAS_RETAINED_DATA`) e a coleção continua rodando nas próximas
+vezes; a anonimização na hora é coberta pelos testes automatizados do `customers`.
 
 ### Pela linha de comando
 

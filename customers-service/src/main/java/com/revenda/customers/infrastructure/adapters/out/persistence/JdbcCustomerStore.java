@@ -139,6 +139,14 @@ class JdbcCustomerStore implements SaveCustomerPort, LoadCustomerPort, LockCusto
     }
 
     @Override
+    public Optional<Customer> lockActive(UUID id) {
+        return jdbc.sql(ACTIVE_CUSTOMER + " AND id = :id FOR UPDATE")
+                .param("id", id)
+                .query((row, index) -> customer(row))
+                .optional();
+    }
+
+    @Override
     public boolean existsActiveFor(String identitySubject) {
         return jdbc.sql("SELECT EXISTS (SELECT 1 FROM customer WHERE identity_subject = :subject AND status = 'ACTIVE')")
                 .param("subject", identitySubject)

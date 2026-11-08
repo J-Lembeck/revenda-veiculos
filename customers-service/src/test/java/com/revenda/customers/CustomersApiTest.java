@@ -17,6 +17,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.BeforeEach;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.resttestclient.TestRestTemplate;
 import org.springframework.boot.resttestclient.autoconfigure.AutoConfigureTestRestTemplate;
@@ -50,9 +51,19 @@ abstract class CustomersApiTest {
     @Autowired
     protected JdbcClient jdbc;
 
+    protected static final FakeSales SALES = FakeSales.shared();
+
     @DynamicPropertySource
     static void database(DynamicPropertyRegistry registry) {
         PostgresTestDatabase.register(registry, "customers");
+        registry.add("revenda.neighbors.sales-url", () -> SALES.url().toString());
+        registry.add("revenda.neighbors.read-timeout", () -> "500ms");
+        registry.add("spring.security.oauth2.client.provider.revenda.token-uri", () -> SALES.url() + "/token");
+    }
+
+    @BeforeEach
+    void salesAnswersAsTheRealOne() {
+        SALES.reset();
     }
 
     protected ApiDriver api() {

@@ -14,6 +14,7 @@ import com.revenda.sales.domain.model.PaymentStatus;
 import com.revenda.sales.domain.model.Purchase;
 import com.revenda.sales.domain.model.PurchaseChange;
 import com.revenda.sales.domain.model.PurchaseFilter;
+import com.revenda.sales.domain.model.PurchaseHistory;
 import com.revenda.sales.domain.model.PurchaseStatus;
 import com.revenda.sales.domain.model.PurchaseTransition;
 import com.revenda.sales.domain.model.SalesError;
@@ -87,6 +88,20 @@ class JdbcPurchaseStore implements SavePurchasePort, LoadPurchasePort, LockPurch
                                           AND status IN ('PENDING', 'RESERVED', 'AWAITING_PAYMENT'))""")
                 .param("customerId", customerId)
                 .query(Boolean.class)
+                .single();
+    }
+
+    @Override
+    public PurchaseHistory historyOf(UUID customerId) {
+        return jdbc.sql("""
+                        SELECT max(completed_at) FILTER (WHERE status = 'COMPLETED') AS last_completed_at,
+                               coalesce(bool_or(status IN ('PENDING', 'RESERVED', 'AWAITING_PAYMENT', 'PAID')), false)
+                                   AS open
+                          FROM purchase
+                         WHERE customer_id = :customerId""")
+                .param("customerId", customerId)
+                .query((row, index) -> new PurchaseHistory(
+                        SqlTime.instantOrNull(row, "last_completed_at"), row.getBoolean("open")))
                 .single();
     }
 

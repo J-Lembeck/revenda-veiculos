@@ -1,8 +1,9 @@
 package com.revenda.sales.infrastructure.adapters.out.http;
 
+import com.revenda.common.http.ServiceCalls;
 import com.revenda.common.error.BusinessException;
 import com.revenda.common.error.FieldViolation;
-import com.revenda.sales.domain.model.DependencyUnavailableException;
+import com.revenda.common.error.DependencyUnavailableException;
 import com.revenda.sales.domain.model.Eligibility;
 import com.revenda.sales.domain.model.Payer;
 import com.revenda.sales.domain.model.TransferBuyer;
@@ -39,7 +40,7 @@ class CustomersHttpClient implements CheckEligibilityPort, LoadPayerPort, LoadTr
 
     @Override
     public Eligibility check(String customerSubject) {
-        NeighborCalls.requireNoTransaction(NEIGHBOR);
+        ServiceCalls.requireNoTransaction(NEIGHBOR);
         try {
             EligibilityResponse answer = rest.get()
                     .uri("/internal/customers/by-subject/{sub}/eligibility", customerSubject)
@@ -47,13 +48,13 @@ class CustomersHttpClient implements CheckEligibilityPort, LoadPayerPort, LoadTr
                     .body(EligibilityResponse.class);
             return new Eligibility(answer.customerId(), answer.eligible(), answer.reason());
         } catch (RuntimeException failure) {
-            throw new DependencyUnavailableException(NEIGHBOR, NeighborCalls.describe(failure));
+            throw new DependencyUnavailableException(NEIGHBOR, ServiceCalls.describe(failure));
         }
     }
 
     @Override
     public Payer load(UUID customerId, UUID purchaseId) {
-        NeighborCalls.requireNoTransaction(NEIGHBOR);
+        ServiceCalls.requireNoTransaction(NEIGHBOR);
         try {
             PayerResponse payer = rest.get()
                     .uri("/internal/customers/{id}/payer", customerId)
@@ -62,13 +63,13 @@ class CustomersHttpClient implements CheckEligibilityPort, LoadPayerPort, LoadTr
                     .body(PayerResponse.class);
             return new Payer(payer.customerId(), payer.fullName(), payer.cpf(), payer.address().toAddress());
         } catch (RuntimeException failure) {
-            throw new DependencyUnavailableException(NEIGHBOR, NeighborCalls.describe(failure));
+            throw new DependencyUnavailableException(NEIGHBOR, ServiceCalls.describe(failure));
         }
     }
 
     @Override
     public TransferBuyer loadBuyer(UUID customerId, UUID purchaseId) {
-        NeighborCalls.requireNoTransaction(NEIGHBOR);
+        ServiceCalls.requireNoTransaction(NEIGHBOR);
         try {
             TransferDataResponse buyer = rest.get()
                     .uri("/internal/customers/{id}/transfer-data", customerId)
@@ -78,13 +79,13 @@ class CustomersHttpClient implements CheckEligibilityPort, LoadPayerPort, LoadTr
             return new TransferBuyer(buyer.customerId(), buyer.fullName(), buyer.cpf(), buyer.email(),
                     buyer.address().toAddress());
         } catch (RuntimeException failure) {
-            throw new DependencyUnavailableException(NEIGHBOR, NeighborCalls.describe(failure));
+            throw new DependencyUnavailableException(NEIGHBOR, ServiceCalls.describe(failure));
         }
     }
 
     @Override
     public boolean matches(UUID customerId, UUID purchaseId, String cpf) {
-        NeighborCalls.requireNoTransaction(NEIGHBOR);
+        ServiceCalls.requireNoTransaction(NEIGHBOR);
         try {
             return rest.post()
                     .uri("/internal/customers/{id}/cpf-check", customerId)
@@ -97,7 +98,7 @@ class CustomersHttpClient implements CheckEligibilityPort, LoadPayerPort, LoadTr
         } catch (HttpClientErrorException.BadRequest refused) {
             throw invalidCpf(refused);
         } catch (RuntimeException failure) {
-            throw new DependencyUnavailableException(NEIGHBOR, NeighborCalls.describe(failure));
+            throw new DependencyUnavailableException(NEIGHBOR, ServiceCalls.describe(failure));
         }
     }
 
@@ -111,7 +112,7 @@ class CustomersHttpClient implements CheckEligibilityPort, LoadPayerPort, LoadTr
                     .forEach(field -> fields.add(new FieldViolation("cpf", field.code(), field.message())));
         }
         if (fields.isEmpty()) {
-            throw new DependencyUnavailableException(NEIGHBOR, NeighborCalls.describe(refused));
+            throw new DependencyUnavailableException(NEIGHBOR, ServiceCalls.describe(refused));
         }
         return BusinessException.invalid(fields.toArray(FieldViolation[]::new));
     }

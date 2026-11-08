@@ -31,8 +31,20 @@ class SalesApiDocsTests extends SalesApiTest {
 
         assertThat(operations).containsExactlyInAnyOrder("POST /purchases", "GET /purchases", "GET /purchases/{id}",
                 "POST /purchases/{id}/cancellation", "POST /purchases/{id}/pickup", "GET /purchases/{id}/document",
-                "POST /webhooks/payments");
+                "POST /webhooks/payments", "GET /internal/customers/{id}/retention");
         assertThat(docs.at("/info/title").asString()).isEqualTo("Compras");
+    }
+
+    @Test
+    void theRetentionIsForTheCustomersServiceWithTheScope() {
+        JsonNode retention = operation("/internal/customers/{id}/retention", "get");
+
+        assertThat(retention.get("security").toString()).isEqualTo("[{\"bearer\":[]}]");
+        assertThat(retention.get("description").asString()).contains("scope `sales.read-retention`",
+                "RETENTION_AFTER_SALE");
+        assertThat(retention.get("responses").propertyNames()).contains("200", "400", "401", "403", "500");
+        assertThat(docs.at("/components/schemas/RetentionResponse/properties").propertyNames())
+                .containsExactly("retainUntil");
     }
 
     @Test

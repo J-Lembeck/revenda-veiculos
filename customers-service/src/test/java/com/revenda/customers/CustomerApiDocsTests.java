@@ -30,6 +30,7 @@ class CustomerApiDocsTests extends CustomersApiTest {
                 .forEach(method -> operations.add(method.getKey().toUpperCase() + " " + path.getKey())));
 
         assertThat(operations).containsExactlyInAnyOrder("POST /customers", "GET /customers/me", "PATCH /customers/me",
+                "GET /customers/me/export", "POST /customers/me/deletion",
                 "GET /customers/{id}", "POST /customers/{id}/cpf-reveal",
                 "GET /internal/customers/by-subject/{sub}/eligibility", "GET /internal/customers/{id}/payer",
                 "GET /internal/customers/{id}/transfer-data", "POST /internal/customers/{id}/cpf-check");

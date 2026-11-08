@@ -5,7 +5,7 @@ import com.revenda.common.audit.AuditRecorder;
 import com.revenda.common.error.BusinessException;
 import com.revenda.common.error.CommonError;
 import com.revenda.common.idempotency.IdempotencyStore;
-import com.revenda.sales.domain.model.DependencyUnavailableException;
+import com.revenda.common.error.DependencyUnavailableException;
 import com.revenda.sales.domain.model.IssuedCharge;
 import com.revenda.sales.domain.model.Payer;
 import com.revenda.sales.domain.model.Purchase;
