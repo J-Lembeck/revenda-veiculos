@@ -30,8 +30,27 @@ class SalesApiDocsTests extends SalesApiTest {
                 .forEach(method -> operations.add(method.getKey().toUpperCase() + " " + path.getKey())));
 
         assertThat(operations).containsExactlyInAnyOrder("POST /purchases", "GET /purchases", "GET /purchases/{id}",
-                "POST /purchases/{id}/cancellation", "POST /webhooks/payments");
+                "POST /purchases/{id}/cancellation", "POST /purchases/{id}/pickup", "GET /purchases/{id}/document",
+                "POST /webhooks/payments");
         assertThat(docs.at("/info/title").asString()).isEqualTo("Compras");
+    }
+
+    @Test
+    void thePickupIsForTheTeamWithTheCpfInTheBodyAndTheDocumentForTheOwnerAndTheTeam() {
+        JsonNode pickup = operation("/purchases/{id}/pickup", "post");
+        JsonNode document = operation("/purchases/{id}/document", "get");
+
+        assertThat(pickup.get("description").asString()).contains("UC-12", "RN-14", "Papéis: SELLER",
+                "PURCHASE_PICKUP_CONFIRMED", "PURCHASE_PICKUP_REJECTED").doesNotContain("Papéis: CUSTOMER");
+        assertThat(pickup.get("responses").propertyNames()).contains("200", "400", "404", "409", "422", "503");
+        assertThat(pickup.at("/responses/422/description").asString()).contains("IDENTITY_MISMATCH");
+        assertThat(pickup.at("/responses/409/description").asString()).contains("PURCHASE_NOT_PAID");
+        assertThat(docs.at("/components/schemas/PickupRequest/properties").propertyNames()).containsExactly("cpf");
+        assertThat(document.get("description").asString()).contains("DP-06", "RN-15", "PURCHASE_DOCUMENT_DOWNLOADED",
+                "CUSTOMER", "SELLER");
+        assertThat(document.at("/responses/409/description").asString()).contains("DOCUMENT_NOT_READY");
+        assertThat(docs.at("/components/schemas/DocumentLinkResponse/properties").propertyNames())
+                .containsExactlyInAnyOrder("url", "expiresAt");
     }
 
     @Test

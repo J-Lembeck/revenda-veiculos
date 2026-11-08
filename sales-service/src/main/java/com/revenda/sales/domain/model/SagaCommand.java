@@ -7,8 +7,8 @@ import java.util.UUID;
 
 /**
  * Um comando que a saga manda a outro participante depois de uma mudança da compra, pelo outbox. Os comandos do
- * estoque saem em ordem por veículo; os do gateway, em ordem por compra — uma compra tem uma cobrança, e o
- * cancelamento pode sair antes de se saber o id dela.
+ * estoque saem em ordem por veículo; os do gateway e o do documento, em ordem por compra — uma compra tem uma cobrança,
+ * e o cancelamento pode sair antes de se saber o id dela.
  */
 public sealed interface SagaCommand {
 
@@ -95,6 +95,31 @@ public sealed interface SagaCommand {
         @Override
         public String groupKey() {
             return vehicleId.toString();
+        }
+    }
+
+    /** Emite o documento de transferência da compra retirada: lê o comprador e o veículo, gera o PDF e o guarda. */
+    record GenerateTransferDocument(UUID purchaseId) implements SagaCommand {
+
+        public static final String TYPE = "GenerateTransferDocument";
+
+        public GenerateTransferDocument {
+            Objects.requireNonNull(purchaseId, "purchaseId");
+        }
+
+        @Override
+        public CommandDestination destination() {
+            return CommandDestination.DOCUMENTS;
+        }
+
+        @Override
+        public String type() {
+            return TYPE;
+        }
+
+        @Override
+        public String groupKey() {
+            return purchaseId.toString();
         }
     }
 

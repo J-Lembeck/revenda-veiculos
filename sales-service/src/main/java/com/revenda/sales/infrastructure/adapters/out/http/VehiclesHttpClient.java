@@ -1,7 +1,10 @@
 package com.revenda.sales.infrastructure.adapters.out.http;
 
 import com.revenda.common.money.Money;
+import com.revenda.sales.domain.model.DependencyUnavailableException;
+import com.revenda.sales.domain.model.TransferVehicle;
 import com.revenda.sales.domain.model.VehicleReservation;
+import com.revenda.sales.domain.ports.out.LoadTransferVehiclePort;
 import com.revenda.sales.domain.ports.out.ReserveVehiclePort;
 import java.util.UUID;
 import lombok.extern.slf4j.Slf4j;
@@ -11,10 +14,13 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestClient;
 
-/** A reserva no estoque, com o token de serviço de scope {@code vehicles.reserve}. */
+/**
+ * O estoque, com o token de serviço: a reserva (scope {@code vehicles.reserve}) e a leitura do veículo para o documento
+ * de transferência (scope {@code vehicles.read}).
+ */
 @Slf4j
 @Component
-class VehiclesHttpClient implements ReserveVehiclePort {
+class VehiclesHttpClient implements ReserveVehiclePort, LoadTransferVehiclePort {
 
     private static final String NEIGHBOR = "estoque";
 
@@ -44,9 +50,29 @@ class VehiclesHttpClient implements ReserveVehiclePort {
         }
     }
 
+    @Override
+    public TransferVehicle load(UUID vehicleId) {
+        NeighborCalls.requireNoTransaction(NEIGHBOR);
+        try {
+            VehicleResponse vehicle = rest.get()
+                    .uri("/internal/vehicles/{id}", vehicleId)
+                    .retrieve()
+                    .body(VehicleResponse.class);
+            return new TransferVehicle(vehicle.id(), vehicle.brand(), vehicle.model(), vehicle.trimName(),
+                    vehicle.manufactureYear(), vehicle.modelYear(), vehicle.color(), vehicle.mileageKm(),
+                    vehicle.plate(), vehicle.vin(), vehicle.renavam());
+        } catch (RuntimeException failure) {
+            throw new DependencyUnavailableException(NEIGHBOR, NeighborCalls.describe(failure));
+        }
+    }
+
     record ReservationRequest(UUID purchaseId) {
     }
 
     record ReservationResponse(long priceCents) {
+    }
+
+    record VehicleResponse(UUID id, String brand, String model, String trimName, int manufactureYear, int modelYear,
+            String color, int mileageKm, String plate, String vin, String renavam) {
     }
 }

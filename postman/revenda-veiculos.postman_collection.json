@@ -780,7 +780,7 @@
 									"    const claims = jwtClaims(token);",
 									"    pm.test('token de serviço: só scopes, sem papel de pessoa', () => {",
 									"        pm.expect(claims.azp || claims.client_id).to.eql('sales-service');",
-									"        pm.expect(claims.scope.split(' ')).to.include.members([\"vehicles.reserve\",\"customers.read-payer\"]);",
+									"        pm.expect(claims.scope.split(' ')).to.include.members([\"vehicles.reserve\",\"vehicles.read\",\"customers.read-payer\"]);",
 									"        pm.expect(claims).to.not.have.property('realm_access');",
 									"    });",
 									"    pm.environment.set('tokenSalesService', token);",
@@ -793,7 +793,7 @@
 						"method": "POST",
 						"header": [],
 						"url": "{{keycloakUrl}}/realms/{{realm}}/protocol/openid-connect/token",
-						"description": "Token do cliente de serviço `sales-service` por *client credentials* — é como o serviço chama as rotas internas dos vizinhos.\n\nAntes: copie o valor de `SALES_SERVICE_CLIENT_SECRET` do `infra/.env` para a variável secreta `salesServiceClientSecret` do ambiente (valor atual). O segredo nunca fica na coleção.\n\nDeve aparecer: `200` com um token só de *scopes* (`vehicles.reserve customers.read-payer`), sem papel de pessoa, guardado em `tokenSalesService`.",
+						"description": "Token do cliente de serviço `sales-service` por *client credentials* — é como o serviço chama as rotas internas dos vizinhos.\n\nAntes: copie o valor de `SALES_SERVICE_CLIENT_SECRET` do `infra/.env` para a variável secreta `salesServiceClientSecret` do ambiente (valor atual). O segredo nunca fica na coleção.\n\nDeve aparecer: `200` com um token só de *scopes* (`vehicles.reserve vehicles.read customers.read-payer`), sem papel de pessoa, guardado em `tokenSalesService`.",
 						"body": {
 							"mode": "urlencoded",
 							"urlencoded": [
@@ -4413,7 +4413,7 @@
 						"method": "GET",
 						"header": [],
 						"url": "{{salesUrl}}/purchases/{{purchaseId}}/document",
-						"description": "Dono da compra. O documento (PDF com os campos do ATPV-e, no S3 com SSE-KMS) é gerado depois da retirada; a consulta se repete por até 20 s. Deve aparecer: `200` com `url` pré-assinada e `expiresAt` em até 5 minutos. Nenhum dado pessoal na URL.",
+						"description": "Dono da compra. O documento (PDF com os campos do ATPV-e, no S3 com SSE-KMS) é gerado depois da retirada; enquanto não sai, `409 DOCUMENT_NOT_READY`, e a consulta se repete por até 20 s. Deve aparecer: `200` com `url` pré-assinada e `expiresAt` em até 5 minutos, `Cache-Control: no-store`. Nenhum dado pessoal na URL. Abra a `url` no navegador para ver o PDF (vale 5 minutos). Cada link entregue grava `PURCHASE_DOCUMENT_DOWNLOADED`.",
 						"auth": {
 							"type": "bearer",
 							"bearer": [
@@ -4522,7 +4522,8 @@
 									"        pm.response.to.have.status(200);",
 									"        pm.expect(purchase.status).to.eql('COMPLETED');",
 									"    });",
-									"    pm.test(\"linha do tempo: PENDING → RESERVED → AWAITING_PAYMENT → PAID → COMPLETED\", () => pm.expect(statuses).to.eql([\"PENDING\",\"RESERVED\",\"AWAITING_PAYMENT\",\"PAID\",\"COMPLETED\"]));",
+									"    pm.test(\"linha do tempo: PENDING → RESERVED → AWAITING_PAYMENT → PAID → COMPLETED → COMPLETED\", () => pm.expect(statuses).to.eql([\"PENDING\",\"RESERVED\",\"AWAITING_PAYMENT\",\"PAID\",\"COMPLETED\",\"COMPLETED\"]));",
+									"    pm.test('os dois últimos passos: retirada e documento emitido', () => pm.expect(purchase.timeline.slice(-2).map((step) => step.reason)).to.eql(['PICKUP_CONFIRMED', 'DOCUMENT_ISSUED']));",
 									"}"
 								]
 							}
@@ -4532,7 +4533,7 @@
 						"method": "GET",
 						"header": [],
 						"url": "{{salesUrl}}/purchases/{{purchaseId}}",
-						"description": "**UC-13** · `CUSTOMER`. Deve aparecer: `COMPLETED` e a linha do tempo inteira, `PENDING → RESERVED → AWAITING_PAYMENT → PAID → COMPLETED` (cada passo é uma linha de `purchase_transition`).",
+						"description": "**UC-13** · `CUSTOMER`. Deve aparecer: `COMPLETED` e a linha do tempo inteira, `PENDING → RESERVED → AWAITING_PAYMENT → PAID → COMPLETED → COMPLETED` — o último é o documento emitido (`DOCUMENT_ISSUED`, D-36); cada passo é uma linha de `purchase_transition`.",
 						"auth": {
 							"type": "bearer",
 							"bearer": [
@@ -9221,6 +9222,69 @@
 					},
 					"response": [],
 					"id": "cb561d50-22ba-5194-8210-263af56a4d22"
+				},
+				{
+					"name": "vehicles: ler o veículo para o documento",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('responde 200 com a identificação do veículo', () => {",
+									"    pm.response.to.have.status(200);",
+									"    const vehicle = pm.response.json();",
+									"    pm.expect(vehicle.id).to.eql(pm.collectionVariables.get('vehicleId'));",
+									"    pm.expect(vehicle.status).to.eql('RESERVED');",
+									"    ['plate', 'vin', 'renavam', 'color'].forEach((field) => pm.expect(vehicle[field], field).to.be.a('string').and.not.empty);",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": "{{vehiclesUrl}}/internal/vehicles/{{vehicleId}}",
+						"description": "*Scope* `vehicles.read` (`sales-service`, D-36). O veículo como a equipe vê, em qualquer status — placa, chassi, RENAVAM, cor e anos vão para o documento de transferência. Só leitura, sem auditoria. Deve aparecer: `200` com `plate`, `vin`, `renavam` e `status: RESERVED` (a reserva acima)."
+					},
+					"response": [],
+					"id": "61577d6b-9626-58fc-a906-7d33cdc0accf"
+				},
+				{
+					"name": "vehicles: ler com token de pessoa → 403",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"responde 403 FORBIDDEN\", () => {",
+									"    pm.response.to.have.status(403);",
+									"    pm.expect(pm.response.json().code).to.eql('FORBIDDEN');",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": "{{vehiclesUrl}}/internal/vehicles/{{vehicleId}}",
+						"description": "Nem a equipe usa a rota interna — ela tem o `GET /vehicles/{id}`. Deve aparecer: `403 FORBIDDEN`.",
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{tokenVera}}",
+									"type": "string"
+								}
+							]
+						}
+					},
+					"response": [],
+					"id": "2746814e-286c-524c-a62f-724f5415d2d3"
 				},
 				{
 					"name": "customers: elegibilidade da Ana",

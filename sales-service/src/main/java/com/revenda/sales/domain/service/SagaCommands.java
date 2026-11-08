@@ -6,6 +6,7 @@ import com.revenda.sales.domain.model.PurchaseStatus;
 import com.revenda.sales.domain.model.SagaCommand;
 import com.revenda.sales.domain.model.SagaCommand.CancelCharge;
 import com.revenda.sales.domain.model.SagaCommand.DeliverVehicle;
+import com.revenda.sales.domain.model.SagaCommand.GenerateTransferDocument;
 import com.revenda.sales.domain.model.SagaCommand.MarkVehicleSold;
 import com.revenda.sales.domain.model.SagaCommand.RefundCharge;
 import com.revenda.sales.domain.model.SagaCommand.ReleaseVehicle;
@@ -24,7 +25,7 @@ public final class SagaCommands {
     public static List<SagaCommand> after(PurchaseChange change) {
         Purchase purchase = change.purchase();
         return switch (change.transition().reason()) {
-            case PURCHASE_REQUESTED, VEHICLE_RESERVED, CHARGE_ISSUED, VEHICLE_UNAVAILABLE, REFUND_CONFIRMED ->
+            case PURCHASE_REQUESTED, VEHICLE_RESERVED, CHARGE_ISSUED, VEHICLE_UNAVAILABLE, REFUND_CONFIRMED, DOCUMENT_ISSUED ->
                     List.of();
             case RESERVATION_FAILED -> List.of(release(purchase));
             case CHARGE_FAILED, RECOVERY_TIMEOUT -> List.of(release(purchase), cancelCharge(purchase));
@@ -37,7 +38,7 @@ public final class SagaCommands {
                     ? List.of(refund(purchase), release(purchase))
                     : List.of(cancelCharge(purchase), release(purchase));
             case PICKUP_CONFIRMED -> List.of(new DeliverVehicle(purchase.id(), purchase.vehicleId(),
-                    purchase.completedAt()));
+                    purchase.completedAt()), new GenerateTransferDocument(purchase.id()));
         };
     }
 

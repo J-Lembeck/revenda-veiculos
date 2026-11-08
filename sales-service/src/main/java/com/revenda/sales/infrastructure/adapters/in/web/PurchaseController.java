@@ -7,7 +7,9 @@ import com.revenda.common.security.ActorType;
 import com.revenda.common.security.Role;
 import com.revenda.sales.domain.model.PurchaseDetails;
 import com.revenda.sales.domain.ports.in.CancelPurchaseUseCase;
+import com.revenda.sales.domain.ports.in.ConfirmPickupUseCase;
 import com.revenda.sales.domain.ports.in.CreatePurchaseUseCase;
+import com.revenda.sales.domain.ports.in.GetTransferDocumentUseCase;
 import com.revenda.sales.domain.ports.in.ViewPurchasesUseCase;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -21,6 +23,7 @@ import java.net.URI;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springdoc.core.annotations.ParameterObject;
+import org.springframework.http.CacheControl;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -41,6 +44,8 @@ class PurchaseController {
     private final CreatePurchaseUseCase createPurchase;
     private final ViewPurchasesUseCase viewPurchases;
     private final CancelPurchaseUseCase cancelPurchase;
+    private final ConfirmPickupUseCase confirmPickup;
+    private final GetTransferDocumentUseCase transferDocument;
 
     @Operation(summary = "Comprar: reservar e receber o código de pagamento", description = "UC-08 (DP-02). Numa "
             + "chamada só: confere o cadastro (RN-05), reserva o veículo pelo preço do momento (RN-09) e emite o Pix, "
@@ -114,6 +119,44 @@ class PurchaseController {
     PurchaseResponse cancel(@Parameter(hidden = true) @AuthenticationPrincipal Jwt token,
             @Parameter(description = "Id da compra") @PathVariable UUID id) {
         return PurchaseResponse.of(cancelPurchase.cancel(id, token.getSubject()));
+    }
+
+    @Operation(summary = "Confirmar a retirada", description = "UC-12 (RN-14). Só a equipe, com a compra paga. O CPF do "
+            + "documento que a pessoa apresentou na loja vai no corpo (nunca na URL) e é conferido no cadastro pelo "
+            + "blind index, sem revelar o CPF de lá. É o pivô da saga: a compra fica `COMPLETED`, e a baixa no estoque "
+            + "(`DELIVERED`) e o documento de transferência saem em seguida pelo outbox — o documento fica pronto em "
+            + "segundos em `GET /purchases/{id}/document`. Grava `PURCHASE_PICKUP_CONFIRMED`; o CPF que não é o do "
+            + "comprador grava `PURCHASE_PICKUP_REJECTED`, com quem tentou. Não cria nada: sem `Idempotency-Key`; "
+            + "repetir responde `409`.")
+    @ApiResponse(responseCode = "200", description = "Retirada: `COMPLETED`.")
+    @ApiResponse(responseCode = "400", description = "`VALIDATION_FAILED` com `id` `TYPE_INVALID`, ou `cpf` "
+            + "`REQUIRED` ou `CPF_INVALID` (dígitos que não conferem); nada é conferido.")
+    @ApiResponse(responseCode = "404", description = "`NOT_FOUND` — a compra não existe.")
+    @ApiResponse(responseCode = "409", description = "`PURCHASE_NOT_PAID` — a compra não está paga: ainda aguarda o "
+            + "pagamento, foi encerrada ou já foi retirada.")
+    @ApiResponse(responseCode = "422", description = "`IDENTITY_MISMATCH` — o CPF apresentado não é o do comprador; "
+            + "a compra continua paga.")
+    @ApiResponse(responseCode = "503", description = "`DEPENDENCY_UNAVAILABLE` — o cadastro não respondeu; nada "
+            + "mudou, tente de novo.")
+    @PostMapping("/{id}/pickup")
+    PurchaseResponse pickup(@Parameter(description = "Id da compra") @PathVariable UUID id,
+            @Valid @RequestBody PickupRequest request) {
+        return PurchaseResponse.of(confirmPickup.confirm(id, request.presentedCpf()));
+    }
+
+    @Operation(summary = "Baixar o documento de transferência", description = "DP-06. O dono da compra e a equipe. "
+            + "Devolve um link assinado do PDF no bucket privado, que vale 5 minutos e é gerado a cada pedido (R16); o "
+            + "PDF tem os campos do ATPV-e e não substitui o documento do Detran. Cada link entregue grava "
+            + "`PURCHASE_DOCUMENT_DOWNLOADED`. Compra de outra conta responde `404`, como a que não existe (RN-15).")
+    @ApiResponse(responseCode = "200", description = "O link e até quando ele vale; `Cache-Control: no-store`.")
+    @ApiResponse(responseCode = "400", description = "`VALIDATION_FAILED` com `id` `TYPE_INVALID`.")
+    @ApiResponse(responseCode = "404", description = "`NOT_FOUND` — não existe, ou é de outro cliente.")
+    @ApiResponse(responseCode = "409", description = "`DOCUMENT_NOT_READY` — a compra ainda não foi retirada, ou "
+            + "acabou de ser e o documento sai em segundos; tente de novo.")
+    @GetMapping("/{id}/document")
+    ResponseEntity<DocumentLinkResponse> document(@Parameter(description = "Id da compra") @PathVariable UUID id) {
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore())
+                .body(DocumentLinkResponse.of(transferDocument.link(id, viewer())));
     }
 
     private static ViewPurchasesUseCase.Viewer viewer() {

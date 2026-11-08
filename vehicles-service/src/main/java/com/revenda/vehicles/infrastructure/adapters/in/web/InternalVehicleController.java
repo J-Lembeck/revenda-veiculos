@@ -2,6 +2,7 @@ package com.revenda.vehicles.infrastructure.adapters.in.web;
 
 import com.revenda.vehicles.domain.ports.in.ReserveVehicleCommand;
 import com.revenda.vehicles.domain.ports.in.ReserveVehicleUseCase;
+import com.revenda.vehicles.domain.ports.in.ViewVehicleUseCase;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -11,13 +12,17 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-/** O que só o {@code sales} chama, com token de serviço: a reserva do passo 2 da compra. */
+/**
+ * O que só o {@code sales} chama, com token de serviço: a reserva do passo 2 da compra e a leitura do veículo para o
+ * documento de transferência.
+ */
 @Tag(name = "Interno", description = "Rotas que só o serviço de vendas chama, com token de serviço; não são "
         + "publicadas no API Gateway.")
 @RestController
@@ -26,6 +31,18 @@ import org.springframework.web.bind.annotation.RestController;
 class InternalVehicleController {
 
     private final ReserveVehicleUseCase reserveVehicle;
+    private final ViewVehicleUseCase viewVehicle;
+
+    @Operation(summary = "Ler o veículo para o documento", description = "O veículo como a equipe vê, em qualquer "
+            + "status — placa, chassi, RENAVAM, cor e anos vão para o documento de transferência da compra retirada. "
+            + "Só leitura, sem auditoria: nada aqui é dado pessoal.")
+    @ApiResponse(responseCode = "200", description = "O veículo.")
+    @ApiResponse(responseCode = "400", description = "`VALIDATION_FAILED` — `id` `TYPE_INVALID`.")
+    @ApiResponse(responseCode = "404", description = "`NOT_FOUND` — o veículo não existe.")
+    @GetMapping("/{id}")
+    StaffVehicleResponse view(@Parameter(description = "Id do veículo") @PathVariable UUID id) {
+        return StaffVehicleResponse.of(viewVehicle.view(id, true));
+    }
 
     @Operation(summary = "Reservar veículo para uma compra", description = "Passo 2 da compra. Um único `UPDATE` "
             + "condicional (`WHERE status = 'AVAILABLE'`): de N reservas simultâneas, exatamente uma vence (RN-08). "

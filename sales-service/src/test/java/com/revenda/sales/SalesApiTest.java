@@ -12,6 +12,12 @@ import com.revenda.sales.application.service.SalesProperties;
 import com.revenda.sales.domain.model.Purchase;
 import com.revenda.sales.domain.model.PurchasePaths;
 import com.revenda.sales.domain.ports.out.SavePurchasePort;
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.Duration;
@@ -27,6 +33,8 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import org.awaitility.Awaitility;
 import org.junit.jupiter.api.BeforeEach;
+import org.openpdf.text.pdf.PdfReader;
+import org.openpdf.text.pdf.parser.PdfTextExtractor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.resttestclient.TestRestTemplate;
 import org.springframework.boot.resttestclient.autoconfigure.AutoConfigureTestRestTemplate;
@@ -62,6 +70,7 @@ abstract class SalesApiTest {
 
     protected static final String PURCHASES = "/purchases";
     protected static final String WEBHOOK = "/webhooks/payments";
+    protected static final String SELLER = "5d1e7a40-vendedora";
     protected static final FakeNeighbors NEIGHBORS = FakeNeighbors.shared();
     protected static final Duration PATIENCE = Duration.ofSeconds(20);
 
@@ -99,6 +108,7 @@ abstract class SalesApiTest {
         registry.add("revenda.neighbors.read-timeout", () -> "500ms");
         registry.add("spring.security.oauth2.client.provider.revenda.token-uri", () -> url + "/token");
         registry.add("revenda.vehicle-commands.queue-url", SalesTestSqs.QUEUE::url);
+        SalesTestS3.register(registry);
     }
 
     @BeforeEach
@@ -130,6 +140,60 @@ abstract class SalesApiTest {
             throw new IllegalStateException("Compra não criada: " + created.getStatusCode() + " " + created.getBody());
         }
         return UUID.fromString(created.getBody().get("id").asString());
+    }
+
+    /** Compra um veículo novo e paga, pelo webhook; devolve o id da compra, que fica esperando a retirada. */
+    protected UUID paidPurchase(String subject) {
+        UUID id = awaitingPurchase(subject);
+        ResponseEntity<JsonNode> paid = pay(id);
+        if (!paid.getStatusCode().is2xxSuccessful()) {
+            throw new IllegalStateException("Pagamento não aplicado: " + paid.getStatusCode());
+        }
+        return id;
+    }
+
+    protected ApiDriver seller() {
+        return api().asSeller(SELLER);
+    }
+
+    /** A equipe confirma a retirada com o CPF do documento apresentado. */
+    protected ResponseEntity<JsonNode> pickup(UUID purchaseId, String cpf) {
+        return seller().post(PURCHASES + "/" + purchaseId + "/pickup", Map.of("cpf", cpf));
+    }
+
+    protected ResponseEntity<JsonNode> documentOf(ApiDriver viewer, UUID purchaseId) {
+        return viewer.get(PURCHASES + "/" + purchaseId + "/document");
+    }
+
+    /** Compra, paga e retira com o CPF do comprador; o documento ainda não saiu (o outbox não foi despachado). */
+    protected UUID completedPurchase(String subject) {
+        UUID id = paidPurchase(subject);
+        ResponseEntity<JsonNode> picked = pickup(id, FakeNeighbors.BUYER_CPF);
+        if (!picked.getStatusCode().is2xxSuccessful()) {
+            throw new IllegalStateException("Retirada não confirmada: " + picked.getStatusCode() + " " + picked.getBody());
+        }
+        return id;
+    }
+
+    /** Baixa pelo link assinado, como o navegador do comprador: sem token, só o endereço. */
+    protected static HttpResponse<byte[]> download(URI url) {
+        try (HttpClient http = HttpClient.newHttpClient()) {
+            return http.send(HttpRequest.newBuilder(url).GET().build(), HttpResponse.BodyHandlers.ofByteArray());
+        } catch (IOException failure) {
+            throw new UncheckedIOException(failure);
+        } catch (InterruptedException interrupted) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException(interrupted);
+        }
+    }
+
+    /** O texto da primeira página do PDF. */
+    protected static String pdfText(byte[] pdf) {
+        try (PdfReader reader = new PdfReader(pdf)) {
+            return new PdfTextExtractor(reader).getTextFromPage(1);
+        } catch (IOException failure) {
+            throw new UncheckedIOException(failure);
+        }
     }
 
     /** Grava a compra do caminho com todas as mudanças dele, como se a saga tivesse andado até ali. */

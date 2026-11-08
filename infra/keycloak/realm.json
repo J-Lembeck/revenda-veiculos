@@ -261,6 +261,12 @@
       "attributes": { "include.in.token.scope": "true", "display.on.consent.screen": "false" }
     },
     {
+      "name": "vehicles.read",
+      "description": "Ler o veículo para o documento de transferência (rota interna do vehicles-service)",
+      "protocol": "openid-connect",
+      "attributes": { "include.in.token.scope": "true", "display.on.consent.screen": "false" }
+    },
+    {
       "name": "customers.read-payer",
       "description": "Ler elegibilidade, dados de cobrança e de documento e conferir CPF (rotas internas do customers-service)",
       "protocol": "openid-connect",
@@ -310,7 +316,7 @@
       "directAccessGrantsEnabled": false,
       "serviceAccountsEnabled": true,
       "fullScopeAllowed": false,
-      "defaultClientScopes": ["basic", "service_account", "vehicles.reserve", "customers.read-payer"],
+      "defaultClientScopes": ["basic", "service_account", "vehicles.reserve", "vehicles.read", "customers.read-payer"],
       "optionalClientScopes": []
     },
     {

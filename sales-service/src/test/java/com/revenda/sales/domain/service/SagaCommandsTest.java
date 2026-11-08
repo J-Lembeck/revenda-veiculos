@@ -21,13 +21,14 @@ import org.junit.jupiter.api.Test;
 class SagaCommandsTest {
 
     @Test
-    void theStepsForwardAskNothingButTheSaleAndTheDelivery() {
+    void theStepsForwardAskNothingButTheSaleTheDeliveryAndTheDocument() {
         assertThat(types(PurchasePaths.pending())).isEmpty();
         assertThat(types(PurchasePaths.reserved())).isEmpty();
         assertThat(types(PurchasePaths.awaiting())).isEmpty();
         assertThat(types(PurchasePaths.rejected())).as("nada a desfazer").isEmpty();
         assertThat(types(PurchasePaths.paid())).containsExactly("MarkVehicleSold");
-        assertThat(types(PurchasePaths.completed())).containsExactly("DeliverVehicle");
+        assertThat(types(PurchasePaths.completed())).containsExactly("DeliverVehicle", "GenerateTransferDocument");
+        assertThat(types(PurchasePaths.documented())).as("o documento é o último passo").isEmpty();
         assertThat(types(PurchasePaths.refunded(PurchasePaths.paidWrongAmount()))).isEmpty();
     }
 

@@ -6,6 +6,7 @@ import com.revenda.sales.domain.model.PurchaseChange;
 import com.revenda.sales.domain.model.SagaCommand;
 import com.revenda.sales.domain.model.SagaCommand.CancelCharge;
 import com.revenda.sales.domain.model.SagaCommand.DeliverVehicle;
+import com.revenda.sales.domain.model.SagaCommand.GenerateTransferDocument;
 import com.revenda.sales.domain.model.SagaCommand.MarkVehicleSold;
 import com.revenda.sales.domain.model.SagaCommand.RefundCharge;
 import com.revenda.sales.domain.model.SagaCommand.ReleaseVehicle;
@@ -41,6 +42,7 @@ public class SagaOutbox {
                     sale.soldPrice().toCents(), sale.soldAt());
             case DeliverVehicle delivery -> new DeliveryPayload(delivery.vehicleId(), delivery.purchaseId(),
                     delivery.deliveredAt());
+            case GenerateTransferDocument document -> new DocumentPayload(document.purchaseId());
             case CancelCharge cancel -> new ChargePayload(cancel.purchaseId(), cancel.chargeId());
             case RefundCharge refund -> new ChargePayload(refund.purchaseId(), refund.chargeId());
         };
@@ -56,5 +58,8 @@ public class SagaOutbox {
     }
 
     record ChargePayload(UUID purchaseId, String chargeId) {
+    }
+
+    record DocumentPayload(UUID purchaseId) {
     }
 }

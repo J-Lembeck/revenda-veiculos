@@ -227,6 +227,50 @@ class PurchaseTest {
         assertThat(change.purchase().closedReason()).isNull();
     }
 
+    @Test
+    void theDocumentIsRecordedOnceOnTheCompletedPurchase() {
+        Purchase completed = PurchasePaths.completed().purchase();
+        Instant at = completed.updatedAt().plusSeconds(1);
+        String key = TransferDocument.keyOf(completed);
+
+        PurchaseChange change = completed.recordDocument(key, at).orElseThrow();
+
+        assertMoved(change, completed, PurchaseStatus.COMPLETED, PaymentStatus.PAID, TransitionReason.DOCUMENT_ISSUED,
+                at);
+        assertThat(change.purchase().documentKey()).isEqualTo(key).doesNotContain(completed.customerSubject())
+                .contains(completed.id().toString());
+        assertThat(change.purchase().completedAt()).isEqualTo(completed.completedAt());
+        assertThat(change.purchase().recordDocument(key, at.plusSeconds(1))).as("o comando repetido").isEmpty();
+    }
+
+    static Stream<PurchasePaths.Path> notCompleted() {
+        return PurchasePaths.all().stream().filter(path -> path.purchase().status() != PurchaseStatus.COMPLETED);
+    }
+
+    @ParameterizedTest
+    @MethodSource("notCompleted")
+    void onlyTheCompletedPurchaseGetsADocument(PurchasePaths.Path path) {
+        assertThatThrownBy(() -> path.purchase().recordDocument("purchases/x/transfer-document.pdf", REQUESTED_AT))
+                .isInstanceOf(IllegalStateException.class);
+    }
+
+    @Test
+    void theDocumentNeedsAKey() {
+        Purchase completed = PurchasePaths.completed().purchase();
+
+        assertThatThrownBy(() -> completed.recordDocument(" ", REQUESTED_AT))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void theDocumentIsOnlyOfTheCompletedPurchaseAndItsKeyCarriesNothingOfTheBuyer() {
+        Purchase paid = PurchasePaths.paid().purchase();
+
+        assertThatThrownBy(() -> new TransferDocument(paid, null, null, REQUESTED_AT))
+                .isInstanceOf(NullPointerException.class);
+        assertThat(TransferDocument.keyOf(paid)).isEqualTo("purchases/" + paid.id() + "/transfer-document.pdf");
+    }
+
     static Stream<PurchasePaths.Path> notPaid() {
         return PurchasePaths.all().stream().filter(path -> path.purchase().status() != PurchaseStatus.PAID);
     }
