@@ -32,11 +32,20 @@ final class FakeNeighbors {
 
     static final long DEFAULT_PRICE_CENTS = 8_990_000;
     static final String PIX_CODE = "00020126580014br.gov.bcb.pix0116pix@example.test5802BR6304ABCD";
+    static final String BUYER_NAME = "Maria Exemplo da Silva";
+    static final String BUYER_CPF = SyntheticData.cpf();
+    static final String BUYER_EMAIL = "maria.exemplo@example.test";
+    static final String PLATE = SyntheticData.plate();
+    static final String VIN = SyntheticData.vin();
+    static final String RENAVAM = SyntheticData.renavam();
 
     private static final FakeNeighbors SHARED = new FakeNeighbors();
     private static final Pattern RESERVATION = Pattern.compile("/internal/vehicles/([^/]+)/reservations");
     private static final Pattern ELIGIBILITY = Pattern.compile("/internal/customers/by-subject/([^/]+)/eligibility");
     private static final Pattern PAYER = Pattern.compile("/internal/customers/([^/]+)/payer");
+    private static final Pattern TRANSFER_DATA = Pattern.compile("/internal/customers/([^/]+)/transfer-data");
+    private static final Pattern CPF_CHECK = Pattern.compile("/internal/customers/([^/]+)/cpf-check");
+    private static final Pattern VEHICLE = Pattern.compile("/internal/vehicles/([^/]+)");
     private static final Pattern CHARGE_COMMAND = Pattern.compile("/charges/([^/]+)/(cancel|refund)");
 
     private final HttpServer server;
@@ -51,6 +60,9 @@ final class FakeNeighbors {
     private volatile Duration chargeCreatedButLate = Duration.ZERO;
     private volatile Reply chargeCommands;
     private volatile Reply token;
+    private volatile Reply transferData;
+    private volatile Reply cpfCheck;
+    private volatile Reply vehicleRead;
 
     private FakeNeighbors() {
         try {
@@ -80,6 +92,21 @@ final class FakeNeighbors {
         chargeCreatedButLate = Duration.ZERO;
         chargeCommands = null;
         token = null;
+        transferData = null;
+        cpfCheck = null;
+        vehicleRead = null;
+    }
+
+    void transferDataAnswers(Reply reply) {
+        transferData = reply;
+    }
+
+    void cpfCheckAnswers(Reply reply) {
+        cpfCheck = reply;
+    }
+
+    void vehicleReadAnswers(Reply reply) {
+        vehicleRead = reply;
     }
 
     void vehicleAnswers(UUID vehicleId, Reply reply) {
@@ -176,6 +203,23 @@ final class FakeNeighbors {
                                 "district":"Sé","city":"São Paulo","state":"SP"}}""".formatted(matcher.group(1),
                     SyntheticData.cpf()));
         }
+        if ("GET".equals(method) && (matcher = TRANSFER_DATA.matcher(path)).matches()) {
+            return transferData != null ? transferData : Reply.json(200, """
+                    {"customerId":"%s","fullName":"%s","cpf":"%s","email":"%s",
+                     "address":{"zipCode":"01001000","street":"Praça da Sé","number":"100","complement":"apto 1",
+                                "district":"Sé","city":"São Paulo","state":"SP"}}""".formatted(matcher.group(1),
+                    BUYER_NAME, BUYER_CPF, BUYER_EMAIL));
+        }
+        if ("POST".equals(method) && (matcher = CPF_CHECK.matcher(path)).matches()) {
+            return cpfCheck != null ? cpfCheck : checkCpf(json.readTree(body).path("cpf").asString(""));
+        }
+        if ("GET".equals(method) && (matcher = VEHICLE.matcher(path)).matches()) {
+            return vehicleRead != null ? vehicleRead : Reply.json(200, """
+                    {"id":"%s","brand":"Chevrolet","model":"Onix","trimName":"1.0 Turbo LT","manufactureYear":2023,
+                     "modelYear":2024,"color":"Prata","mileageKm":18500,"plate":"%s","vin":"%s","renavam":"%s",
+                     "priceCents":%d,"status":"SOLD","soldPriceCents":%d,"version":2}""".formatted(matcher.group(1),
+                    PLATE, VIN, RENAVAM, DEFAULT_PRICE_CENTS, DEFAULT_PRICE_CENTS));
+        }
         if ("POST".equals(method) && path.equals("/charges")) {
             return chargeCreation != null ? chargeCreation : createCharge(body);
         }
@@ -187,6 +231,33 @@ final class FakeNeighbors {
             return chargeCommands != null ? chargeCommands : chargeCommand(matcher.group(1), matcher.group(2));
         }
         return Reply.json(404, "{\"code\":\"NOT_FOUND\"}");
+    }
+
+    /** Como o cadastro de verdade: o CPF que não confere é erro do campo; o que confere bate ou não com o do comprador. */
+    private static Reply checkCpf(String presented) {
+        String digits = presented.replaceAll("[.\\-]", "");
+        if (!validCpf(digits)) {
+            return Reply.json(400, "{\"code\":\"VALIDATION_FAILED\",\"message\":\"Confira os campos.\","
+                    + "\"fields\":[{\"field\":\"cpf\",\"code\":\"CPF_INVALID\",\"message\":\"CPF inválido.\"}]}");
+        }
+        return Reply.json(200, "{\"matches\":" + digits.equals(BUYER_CPF) + "}");
+    }
+
+    static boolean validCpf(String digits) {
+        if (!digits.matches("\\d{11}") || digits.chars().distinct().count() == 1) {
+            return false;
+        }
+        for (int position = 9; position <= 10; position++) {
+            int sum = 0;
+            for (int i = 0; i < position; i++) {
+                sum += (digits.charAt(i) - '0') * (position + 1 - i);
+            }
+            int check = (sum * 10) % 11 % 10;
+            if (check != digits.charAt(position) - '0') {
+                return false;
+            }
+        }
+        return true;
     }
 
     private Reply createCharge(byte[] body) {

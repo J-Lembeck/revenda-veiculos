@@ -173,14 +173,20 @@ GATEWAY_API_KEY="$PAYMENT_GATEWAY_API_KEY" ./mvnw -pl payment-gateway-mock sprin
 No PowerShell, `$env:GATEWAY_API_KEY = $env:PAYMENT_GATEWAY_API_KEY` antes do
 `.\mvnw.cmd -pl payment-gateway-mock spring-boot:run` (o `PAYMENT_WEBHOOK_SECRET` já veio do `.env`).
 
-O `sales-service` por enquanto só tem banco: troque as senhas pelas das *roles* `sales_owner` e `sales_app`
-(no PowerShell, `$env:DB_APP_PASSWORD = $env:SALES_DB_APP_PASSWORD; $env:DB_OWNER_PASSWORD = $env:SALES_DB_OWNER_PASSWORD`
-antes do `.\mvnw.cmd -pl sales-service spring-boot:run`):
+O `sales-service` precisa das senhas das *roles* `sales_owner` e `sales_app`, do segredo do próprio cliente de
+serviço no Keycloak, da chave do gateway e do segredo do webhook, e das variáveis da AWS acima (a fila, o bucket dos
+documentos e a chave `alias/documents` estão no LocalStack). Com o `.env` carregado:
 
 ```bash
 DB_APP_PASSWORD="$SALES_DB_APP_PASSWORD" DB_OWNER_PASSWORD="$SALES_DB_OWNER_PASSWORD" \
+  OIDC_CLIENT_SECRET="$SALES_SERVICE_CLIENT_SECRET" \
   ./mvnw -pl sales-service spring-boot:run
 ```
+
+No PowerShell, `$env:DB_APP_PASSWORD = $env:SALES_DB_APP_PASSWORD; $env:DB_OWNER_PASSWORD = $env:SALES_DB_OWNER_PASSWORD;
+$env:OIDC_CLIENT_SECRET = $env:SALES_SERVICE_CLIENT_SECRET` antes do `.\mvnw.cmd -pl sales-service spring-boot:run`
+(o `PAYMENT_GATEWAY_API_KEY` e o `PAYMENT_WEBHOOK_SECRET` já vieram do `.env`). O `vehicles`, o `customers` e o
+gateway precisam estar de pé para a compra andar.
 
 Para ver as tabelas que o Flyway criou:
 
@@ -246,6 +252,7 @@ conferido, e a equipe logada vê o detalhe completo do veículo.
 | `vehicles` | `GET /vehicles/{id}` | qualquer um | detalhe: o público vê só o que está à venda; a equipe vê qualquer um |
 | `vehicles` | `GET /vehicles/sold` | `SELLER`, `ADMIN` | vendidos e entregues, do menor para o maior preço de venda |
 | `vehicles` | `POST /internal/vehicles/{id}/reservations` | serviço com *scope* `vehicles.reserve` | reserva o veículo para uma compra e devolve o preço do momento |
+| `vehicles` | `GET /internal/vehicles/{id}` | serviço com *scope* `vehicles.read` | o veículo com placa, chassi e RENAVAM, em qualquer status, para o documento de transferência |
 | `customers` | `POST /customers` | `CUSTOMER` | o comprador cria o próprio cadastro (`Idempotency-Key` obrigatória; 5 por minuto por rede) |
 | `customers` | `GET /customers/me` | `CUSTOMER` | o comprador vê o próprio cadastro, com CPF, e-mail e telefone mascarados |
 | `customers` | `PATCH /customers/me` | `CUSTOMER` | o comprador muda o próprio nome, telefone e endereço |
@@ -255,6 +262,12 @@ conferido, e a equipe logada vê o detalhe completo do veículo.
 | `customers` | `GET /internal/customers/{id}/payer` | serviço com *scope* `customers.read-payer` | nome, CPF e endereço para a cobrança, com a leitura auditada |
 | `customers` | `GET /internal/customers/{id}/transfer-data` | serviço com *scope* `customers.read-payer` | nome, CPF, e-mail e endereço para o documento, com a leitura auditada |
 | `customers` | `POST /internal/customers/{id}/cpf-check` | serviço com *scope* `customers.read-payer` | se o CPF apresentado na retirada é o do cadastro, sem revelar nada |
+| `sales` | `POST /purchases` | `CUSTOMER` | reserva o veículo e devolve o código Pix numa chamada só (`Idempotency-Key` obrigatória; 10 por minuto por rede) |
+| `sales` | `GET /purchases`, `GET /purchases/{id}` | dono, `SELLER`, `ADMIN` | as compras, a mais recente primeiro; o detalhe traz a linha do tempo |
+| `sales` | `POST /purchases/{id}/cancellation` | dono | desiste: cancela a cobrança ou estorna o pagamento, e o veículo volta à venda |
+| `sales` | `POST /purchases/{id}/pickup` | `SELLER`, `ADMIN` | confirma a retirada da compra paga, com o CPF do documento apresentado conferido |
+| `sales` | `GET /purchases/{id}/document` | dono, `SELLER`, `ADMIN` | link de 5 minutos para baixar o documento de transferência (PDF) |
+| `sales` | `POST /webhooks/payments` | gateway (assinatura HMAC) | aviso de pagamento e de estorno |
 | `payment-gateway-mock` | `POST /charges` | chave de API (`X-Api-Key`) | cria a cobrança Pix da compra, uma por `referenceId` |
 | `payment-gateway-mock` | `GET /charges?referenceId=…` | chave de API | acha a cobrança de uma compra |
 | `payment-gateway-mock` | `POST /charges/{id}/cancel` | chave de API | cancela a cobrança pendente (repetir não é erro) |
@@ -585,8 +598,8 @@ reentrega é em memória.
 
 ### A compra e a saga
 
-O `sales-service` é o dono da compra e orquestra a saga entre o estoque, o cadastro e o gateway. As rotas
-entram nas próximas etapas; já estão prontos o banco e a máquina de estados da compra.
+O `sales-service` é o dono da compra e orquestra a saga entre o estoque, o cadastro e o gateway, do pedido ao
+documento de transferência.
 
 **O que o `sales` guarda.** Só ids, centavos, instantes e o `sub` da conta do comprador — nunca nome, CPF,
 e-mail, telefone ou endereço. Quando precisa do dado do pagador (cobrança) ou do comprador (documento), pede ao
@@ -624,6 +637,7 @@ stateDiagram-v2
 | prazo vencido | `EXPIRED` | `CANCELLED` | `PAYMENT_EXPIRED` |
 | desistência antes / depois de pagar | `CANCELLED` | `CANCELLED` / `REFUND_REQUESTED` | `CUSTOMER_GAVE_UP` |
 | retirada | `COMPLETED` | `PAID` | — |
+| documento emitido (o PDF já está no bucket) | `COMPLETED` | `PAID` | — |
 | pagamento de compra já encerrada | não muda | `REFUND_REQUESTED` | não muda |
 | estorno confirmado | não muda | `REFUNDED` | não muda |
 
@@ -640,13 +654,36 @@ O que pode chegar fora de hora:
 
 Esses dois últimos códigos aparecem só no log.
 
+**A retirada e o documento.** A retirada é o ponto sem volta da saga. Quem confirma é a equipe, com a compra paga:
+o vendedor digita o CPF do documento que a pessoa apresentou na loja, e o `sales` pergunta ao `customers` se é o
+CPF do comprador (`cpf-check`, pelo *blind index*, sem ninguém ver o número do cadastro). A compra que não está
+paga é recusada antes (`409 PURCHASE_NOT_PAID`), sem gastar uma conferência. O CPF de outra pessoa responde
+`422 IDENTITY_MISMATCH`, a compra continua paga e a auditoria guarda quem tentou (`PURCHASE_PICKUP_REJECTED`).
+Com o CPF certo, numa transação só, a compra vai a `COMPLETED` e o outbox recebe a baixa no estoque
+(`DeliverVehicle`, pela fila) e o pedido do documento (`GenerateTransferDocument`). Os dois depois do pivô não
+falham por regra: só repetem até dar certo.
+
+O documento é gerado pelo próprio `sales`, no destino `DOCUMENTS` do outbox. Ele lê o comprador no `customers`
+(`transfer-data`, leitura auditada lá) e o veículo no `vehicles` (`GET /internal/vehicles/{id}`, *scope*
+`vehicles.read`), monta um PDF com os campos do ATPV-e (vendedor, comprador, veículo, valor e datas) e o grava no
+bucket privado, cifrado com a chave `documents` (SSE-KMS). A chave do arquivo é
+`purchases/{id}/transfer-document.pdf`: nada do comprador no nome. Só depois a compra registra o documento, uma
+linha `COMPLETED` / `DOCUMENT_ISSUED` na linha do tempo. Se o cadastro, o estoque ou o bucket não respondem, o
+outbox tenta de novo com espera; repetido, o comando não faz nada. O PDF é simplificado e não substitui o
+documento do Detran.
+
+`GET /purchases/{id}/document` devolve um link assinado do bucket, gerado a cada pedido, que vale 5 minutos,
+com `Cache-Control: no-store`. Enquanto o PDF não sai, a resposta é `409 DOCUMENT_NOT_READY` (são segundos).
+Cada link entregue é auditado com quem pediu (`PURCHASE_DOCUMENT_DOWNLOADED`). No ambiente local o LocalStack
+não guarda o bucket: depois de reiniciá-lo, o link de uma compra antiga responde `404` do S3.
+
 **Tabelas.**
 
 | Tabela | O quê |
 |---|---|
 | `purchase` | a compra; `CHECK` em cada status e motivo, preço obrigatório depois da reserva, cobrança obrigatória em `AWAITING_PAYMENT` |
 | `purchase_transition` | a linha do tempo: uma linha por mudança, com o ator, inclusive quando só o pagamento muda; a aplicação só insere |
-| `outbox_message` | os comandos para o estoque e o gateway, gravados na transação da mudança |
+| `outbox_message` | os comandos para o estoque, o gateway e o documento, gravados na transação da mudança |
 | `processed_message` | os `eventId` do webhook já aplicados |
 | `audit_log`, `idempotency_key` | auditoria (só inserção) e a idempotência do `POST /purchases` |
 
@@ -676,7 +713,7 @@ usuários do `realm.json` e recriar o contêiner. Quem se cadastra pela tela do 
 vêm do `.env`.
 
 O realm só é importado quando o contêiner do Keycloak é criado. Se o seu foi criado antes de um usuário
-novo ou uma mudança entrar no `realm.json`, recrie-o — isso apaga as sessões e qualquer segundo fator já
+novo ou uma mudança entrar no `realm.json` (como o *scope* `vehicles.read` do `sales-service`), recrie-o — isso apaga as sessões e qualquer segundo fator já
 configurado:
 
 ```bash

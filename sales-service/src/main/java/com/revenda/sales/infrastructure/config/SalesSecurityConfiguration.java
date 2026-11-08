@@ -23,6 +23,8 @@ class SalesSecurityConfiguration {
                         Route.forRoles(HttpMethod.GET, "/purchases", Role.CUSTOMER, Role.SELLER),
                         Route.forRoles(HttpMethod.GET, "/purchases/{id}", Role.CUSTOMER, Role.SELLER),
                         Route.forRoles(HttpMethod.POST, "/purchases/{id}/cancellation", Role.CUSTOMER),
+                        Route.forRoles(HttpMethod.POST, "/purchases/{id}/pickup", Role.SELLER),
+                        Route.forRoles(HttpMethod.GET, "/purchases/{id}/document", Role.CUSTOMER, Role.SELLER),
                         Route.open(HttpMethod.POST, "/webhooks/payments"));
             }
 

@@ -106,13 +106,31 @@ public record Purchase(
         };
     }
 
-    /** UC-12 (RN-14): a retirada da compra paga. A conferência do CPF vem antes e fica fora da compra. */
-    public PurchaseChange confirmPickup(Instant now) {
+    /** Se a compra pode ser retirada: só a paga (RN-14); antes de pagar, encerrada ou já retirada, não. */
+    public void requirePickupAllowed() {
         if (status != PurchaseStatus.PAID) {
             throw BusinessException.of(SalesError.PURCHASE_NOT_PAID);
         }
+    }
+
+    /** UC-12 (RN-14): a retirada da compra paga. A conferência do CPF vem antes e fica fora da compra. */
+    public PurchaseChange confirmPickup(Instant now) {
+        requirePickupAllowed();
         return moveTo(next(PurchaseStatus.COMPLETED, paymentStatus, now).completedAt(now),
                 TransitionReason.PICKUP_CONFIRMED);
+    }
+
+    /**
+     * O documento de transferência da compra retirada foi guardado em {@code key}; a compra continua concluída. Vazio se
+     * ela já tem documento — o comando repetido não emite outro.
+     */
+    public Optional<PurchaseChange> recordDocument(String key, Instant now) {
+        requireStep(PurchaseStatus.COMPLETED, "registrar o documento");
+        requireText(key, "documentKey");
+        if (documentKey != null) {
+            return Optional.empty();
+        }
+        return Optional.of(moveTo(next(status, paymentStatus, now).documentKey(key), TransitionReason.DOCUMENT_ISSUED));
     }
 
     /**

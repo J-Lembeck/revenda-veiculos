@@ -31,7 +31,7 @@ class VehicleApiDocsTests extends VehiclesApiTest {
 
         assertThat(operations).containsExactlyInAnyOrder(
                 "POST /vehicles", "GET /vehicles", "PUT /vehicles/{id}", "GET /vehicles/{id}", "GET /vehicles/sold",
-                "POST /internal/vehicles/{id}/reservations");
+                "POST /internal/vehicles/{id}/reservations", "GET /internal/vehicles/{id}");
         assertThat(docs.at("/info/title").asString()).isEqualTo("Estoque de veículos");
     }
 

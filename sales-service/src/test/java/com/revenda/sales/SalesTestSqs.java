@@ -4,12 +4,15 @@ import com.revenda.common.test.LocalStackTestSqs;
 import com.revenda.common.test.LocalStackTestSqs.FifoQueue;
 import java.time.Duration;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Import;
 import software.amazon.awssdk.services.sqs.SqsClient;
 
 /**
  * A fila de comandos do estoque no LocalStack de teste, uma FIFO só para a suíte do {@code sales}, com DLQ depois de 5
- * recebimentos como a do ambiente local. Todo contexto Spring do serviço usa este cliente.
+ * recebimentos como a do ambiente local. Todo contexto Spring do serviço usa este cliente e, pelo {@link SalesTestS3},
+ * o bucket dos documentos.
  */
+@Import(SalesTestS3.class)
 class SalesTestSqs {
 
     static final SqsClient SQS = LocalStackTestSqs.client();

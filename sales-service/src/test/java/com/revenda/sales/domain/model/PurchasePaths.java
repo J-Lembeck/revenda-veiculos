@@ -49,6 +49,11 @@ public final class PurchasePaths {
         return paid().then("retirada", (purchase, at) -> purchase.confirmPickup(at));
     }
 
+    public static Path documented() {
+        return completed().thenMaybe("com documento", (purchase, at) ->
+                purchase.recordDocument(TransferDocument.keyOf(purchase), at));
+    }
+
     public static Path rejected() {
         return pending().then("recusada na reserva", (purchase, at) -> purchase.reject(at));
     }
@@ -110,7 +115,8 @@ public final class PurchasePaths {
 
     /** Todos os caminhos da tabela, cada um até onde para e cada um com uma compra própria. */
     public static List<Path> all() {
-        List<Path> paths = new ArrayList<>(List.of(pending(), reserved(), awaiting(), paid(), completed()));
+        List<Path> paths = new ArrayList<>(List.of(pending(), reserved(), awaiting(), paid(), completed(),
+                documented()));
         paths.addAll(closedUnpaid());
         paths.addAll(refundRequested());
         refundRequested().forEach(requested -> paths.add(refunded(requested)));

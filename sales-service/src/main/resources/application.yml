@@ -56,6 +56,12 @@ revenda:
     gateway-api-key: ${PAYMENT_GATEWAY_API_KEY}
     connect-timeout: ${HTTP_CONNECT_TIMEOUT:2s}
     read-timeout: ${HTTP_READ_TIMEOUT:2s}
+  documents:
+    bucket: ${DOCUMENTS_BUCKET:transfer-documents}
+    kms-key-id: ${KMS_DOCUMENTS_KEY_ID:alias/documents}
+    link-ttl: PT5M
+    zone: ${DOCUMENTS_ZONE:America/Sao_Paulo}
+    endpoint: ${AWS_ENDPOINT_URL:}
   vehicle-commands:
     queue-url: ${VEHICLE_COMMANDS_QUEUE_URL:http://localhost:4566/000000000000/vehicle-commands.fifo}
   openapi:
