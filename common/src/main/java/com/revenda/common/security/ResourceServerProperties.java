@@ -12,14 +12,21 @@ import org.springframework.validation.annotation.Validated;
 @ConfigurationProperties("revenda.security")
 public record ResourceServerProperties(@Valid @NotNull Oidc oidc, @DefaultValue RateLimit rateLimit) {
 
+    /**
+     * {@code jwkSetUri} é opcional: as chaves públicas por outro endereço que não o do emissor, para o contêiner que
+     * não alcança o endereço que o navegador usa (no compose, {@code keycloak:8180} em vez de {@code localhost:8180}).
+     * O {@code iss} do token continua conferido contra o {@code issuerUri}.
+     */
     public record Oidc(
             @NotBlank String issuerUri,
             @NotBlank String rolesClaim,
             String scopePrefix,
             List<String> webClients,
-            List<String> serviceClients) {
+            List<String> serviceClients,
+            String jwkSetUri) {
 
         public Oidc {
+            jwkSetUri = jwkSetUri == null || jwkSetUri.isBlank() ? null : jwkSetUri;
             scopePrefix = scopePrefix == null ? "" : scopePrefix;
             webClients = webClients == null ? List.of() : List.copyOf(webClients);
             serviceClients = serviceClients == null ? List.of() : List.copyOf(serviceClients);

@@ -56,6 +56,7 @@ class JdbcPurchaseStore implements SavePurchasePort, LoadPurchasePort, LockPurch
 
     private final DataSource dataSource;
     private final JdbcClient jdbc;
+    private final PurchaseMetrics metrics;
 
     @Override
     public void create(PurchaseChange requested) {
@@ -207,6 +208,7 @@ class JdbcPurchaseStore implements SavePurchasePort, LoadPurchasePort, LockPurch
                 .param("actorId", actor.id())
                 .param("occurredAt", SqlTime.utc(transition.occurredAt()))
                 .update();
+        metrics.transitioned(transition);
     }
 
     private static StatementSpec withState(StatementSpec statement, Purchase purchase) {

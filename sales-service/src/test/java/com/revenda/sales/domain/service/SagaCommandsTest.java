@@ -17,7 +17,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import org.junit.jupiter.api.Test;
 
-/** Cada mudança da compra e o que ela pede aos outros participantes (06 §4). */
+/** Cada mudança da compra e o que ela pede aos outros participantes. */
 class SagaCommandsTest {
 
     @Test

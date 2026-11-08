@@ -30,7 +30,8 @@ import org.springframework.security.web.servlet.util.matcher.PathPatternRequestM
 /**
  * Cada serviço que tem o starter de resource server é protegido por esta cadeia: token do provedor de
  * identidade, papéis e scopes do token, regras declaradas pelo serviço em {@link SecurityRoutes} e limite de
- * taxa. Sem {@code UserDetailsService}, o Boot não gera senha.
+ * taxa. Sem {@code UserDetailsService}, o Boot não gera senha. A mesma cadeia protege a porta de gestão, a única que
+ * tem o Actuator: lá só o {@code health} e o {@code prometheus} abrem sem token.
  */
 @AutoConfiguration(beforeName = {
         "org.springframework.boot.security.oauth2.server.resource.autoconfigure.OAuth2ResourceServerAutoConfiguration",
@@ -43,7 +44,7 @@ import org.springframework.security.web.servlet.util.matcher.PathPatternRequestM
 @EnableConfigurationProperties(ResourceServerProperties.class)
 public class ResourceServerAutoConfiguration {
 
-    private static final String[] HEALTH = {"/actuator/health", "/actuator/health/**"};
+    private static final String[] ACTUATOR = {"/actuator/health", "/actuator/health/**", "/actuator/prometheus"};
     private static final String[] API_DOCS = {"/v3/api-docs", "/v3/api-docs/**", "/swagger-ui.html", "/swagger-ui/**"};
     private static final String INTERNAL = "/internal/**";
 
@@ -52,7 +53,9 @@ public class ResourceServerAutoConfiguration {
     JwtDecoder jwtDecoder(ResourceServerProperties properties) {
         ResourceServerProperties.Oidc oidc = properties.oidc();
         return new SupplierJwtDecoder(() -> {
-            NimbusJwtDecoder decoder = NimbusJwtDecoder.withIssuerLocation(oidc.issuerUri()).build();
+            NimbusJwtDecoder decoder = oidc.jwkSetUri() == null
+                    ? NimbusJwtDecoder.withIssuerLocation(oidc.issuerUri()).build()
+                    : NimbusJwtDecoder.withJwkSetUri(oidc.jwkSetUri()).build();
             decoder.setJwtValidator(AccessTokenValidator.forIssuer(oidc));
             return decoder;
         });
@@ -94,7 +97,7 @@ public class ResourceServerAutoConfiguration {
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> {
                     auth.dispatcherTypeMatchers(DispatcherType.ERROR).permitAll();
-                    auth.requestMatchers(HttpMethod.GET, HEALTH).permitAll();
+                    auth.requestMatchers(HttpMethod.GET, ACTUATOR).permitAll();
                     auth.requestMatchers(HttpMethod.GET, API_DOCS).permitAll();
                     byInternal.get(true).forEach(route -> authorize(auth, route));
                     auth.requestMatchers(INTERNAL).denyAll();

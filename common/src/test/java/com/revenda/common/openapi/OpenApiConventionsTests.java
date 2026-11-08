@@ -12,12 +12,17 @@ import io.swagger.v3.oas.models.PathItem;
 import io.swagger.v3.oas.models.Paths;
 import io.swagger.v3.oas.models.media.Content;
 import io.swagger.v3.oas.models.media.MediaType;
+import io.swagger.v3.oas.models.media.DateTimeSchema;
+import io.swagger.v3.oas.models.media.ObjectSchema;
+import io.swagger.v3.oas.models.media.Schema;
 import io.swagger.v3.oas.models.media.StringSchema;
+import io.swagger.v3.oas.models.media.UUIDSchema;
 import io.swagger.v3.oas.models.responses.ApiResponse;
 import io.swagger.v3.oas.models.responses.ApiResponses;
 import io.swagger.v3.oas.models.security.SecurityRequirement;
 import java.time.Duration;
 import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpMethod;
 
@@ -41,6 +46,24 @@ class OpenApiConventionsTests {
 
     private static final OpenApiProperties PROPERTIES = new OpenApiProperties("Coisas", "Descrição", "v1",
             "http://idp.test/auth", "http://idp.test/token");
+
+    @Test
+    void idsAndInstantsWithoutAnExampleGetASyntheticOne() {
+        OpenAPI api = document(PROPERTIES, "/things/mine");
+        api.getComponents().addSchemas("Thing", new ObjectSchema()
+                .addProperty("id", new UUIDSchema())
+                .addProperty("createdAt", new DateTimeSchema())
+                .addProperty("ownerId", new UUIDSchema().example("0b7e4c1a-5d2f-4e8b-9a61-3c7d2e9f1a04"))
+                .addProperty("name", new StringSchema()));
+
+        new OpenApiConventions(List.of(ROUTES), PROPERTIES).customise(api);
+
+        Map<String, Schema> thing = api.getComponents().getSchemas().get("Thing").getProperties();
+        assertThat(thing.get("id").getExample()).hasToString(OpenApiConventions.EXAMPLE_ID);
+        assertThat(thing.get("createdAt").getExample()).hasToString(OpenApiConventions.EXAMPLE_INSTANT);
+        assertThat(thing.get("ownerId").getExample()).hasToString("0b7e4c1a-5d2f-4e8b-9a61-3c7d2e9f1a04");
+        assertThat(thing.get("name").getExample()).isNull();
+    }
 
     @Test
     void theFirstDeclaredRouteThatMatchesDecidesLikeTheSecurityChain() {

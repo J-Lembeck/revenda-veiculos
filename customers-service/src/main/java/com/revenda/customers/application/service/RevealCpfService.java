@@ -3,6 +3,7 @@ package com.revenda.customers.application.service;
 import com.revenda.common.audit.AuditEntry;
 import com.revenda.common.audit.AuditRecorder;
 import com.revenda.common.error.BusinessException;
+import com.revenda.common.jdbc.Transactions;
 import com.revenda.customers.domain.model.Cpf;
 import com.revenda.customers.domain.model.Customer;
 import com.revenda.customers.domain.ports.in.RevealCpfCommand;
@@ -34,7 +35,7 @@ public class RevealCpfService implements RevealCpfUseCase {
         audit.record(AuditEntry.of(CustomersAuditAction.CUSTOMER_CPF_REVEALED, Customer.ENTITY_TYPE, customer.id(),
                         "CPF completo revelado")
                 .withReason(command.reason()));
-        meters.counter(REVEALS_METRIC).increment();
+        Transactions.afterCommit(() -> meters.counter(REVEALS_METRIC).increment());
         return customer.details().cpf();
     }
 }

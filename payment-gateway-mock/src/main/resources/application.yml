@@ -6,10 +6,13 @@ server:
   port: 8084
 
 management:
+  server:
+    port: ${MANAGEMENT_PORT:9084}
+    address: ${MANAGEMENT_ADDRESS:127.0.0.1}
   endpoints:
     web:
       exposure:
-        include: health
+        include: health,prometheus
 
 revenda:
   gateway:

@@ -6,56 +6,295 @@ código de pagamento, pagar, retirar e dar baixa no estoque. Reserva concorrente
 desistência são tratados por uma **SAGA orquestrada**; o dado pessoal do comprador fica cifrado e
 isolado num único serviço.
 
-> **Estado:** fundação do repositório. Os quatro serviços sobem e respondem `health`, o ambiente local
-> sobe por Docker Compose e o CI roda o build. Os casos de uso entram nas próximas etapas.
+**Sumário:** [Comece aqui](#comece-aqui) · [Arquitetura](#arquitetura) ·
+[Decisões principais](#decisões-principais) · [Simular o pagamento](#simular-o-pagamento) ·
+[Usuários sintéticos](#usuários-sintéticos) · [Observabilidade](#observabilidade) ·
+[Imagens e implantação](#imagens-e-implantação) · [Desenvolvimento](#desenvolvimento) ·
+[Rotas e como funcionam](#rotas-e-como-funcionam) · [Testar com o Postman](#testar-com-o-postman)
 
-## Serviços
+## Comece aqui
 
-| Módulo | Porta | Responsável por |
-|---|---|---|
-| `common` | — | biblioteca de infraestrutura compartilhada (sem regra de negócio) |
-| `vehicles-service` | 8081 | estoque: cadastro, edição, vitrine, reserva condicional, comandos da fila (liberar, vender, dar baixa) |
-| `customers-service` | 8082 | cadastro do comprador; único dono do dado pessoal, cifrado em repouso |
-| `sales-service` | 8083 | compra e orquestração da saga, webhook de pagamento, prazos, retirada |
-| `payment-gateway-mock` | 8084 | gateway de pagamento simulado: cobrança, Pix sintético, estorno, webhook |
+Do clone à compra de um carro, só com o Docker e o Postman.
 
-Cada serviço sobe sozinho, tem o próprio banco e fala com os outros só por HTTP, fila ou webhook — nenhum
-lê o banco de outro. No CI, cada um é compilado e testado num job próprio. O pacote base é
-`com.revenda`.
+### Pré-requisitos
 
-## Stack
+- Docker com Compose v2 (no Windows e no macOS, o Docker Desktop aberto), com uns 4 GB de memória livres.
+- [Postman](https://www.postman.com/downloads/) desktop — o da web não alcança `localhost`. Sem ele, dá para
+  usar o Swagger UI no navegador (passo 4).
+- JDK 21 só para desenvolver ([Desenvolvimento](#desenvolvimento)); para rodar, não precisa.
 
-Java 21 · Spring Boot 4.1 · PostgreSQL 16 · Maven multi-módulo (com *wrapper*). No ambiente local,
-Docker Compose com PostgreSQL, LocalStack (SQS, KMS, S3, Secrets Manager) e Keycloak (OIDC).
-
-## Pré-requisitos
-
-- JDK 21, com `JAVA_HOME` apontando para ele.
-- Docker (no Windows e no macOS, o Docker Desktop aberto).
-- Maven não precisa estar instalado: use o `./mvnw` (ou `mvnw.cmd` no Windows).
-
-## Como subir
-
-### 1. Ambiente local
+### 1. Subir tudo
 
 ```bash
 cd infra
 cp .env.example .env
-docker compose up -d
-docker compose ps
+docker compose --profile apps up -d --build --wait
 ```
 
-Os três contêineres devem aparecer como `healthy` (o Keycloak leva cerca de um minuto na primeira vez).
+No PowerShell, `Copy-Item .env.example .env` no lugar do `cp`. O `.env` é git-ignorado e só tem valores de
+desenvolvimento.
+
+A primeira vez leva alguns minutos: o Docker baixa as imagens e compila os quatro serviços dentro de um
+contêiner (as dependências do Maven ficam em cache para a próxima). O `--wait` só volta quando os sete
+contêineres estão saudáveis:
+
+| Contêiner | Porta (gestão) | O que é |
+|---|---|---|
+| `vehicles` | 8081 (9081) | estoque: cadastro, vitrine, reserva, baixa |
+| `customers` | 8082 (9082) | cadastro do comprador; o único com dado pessoal, cifrado |
+| `sales` | 8083 (9083) | a compra e a saga, o webhook de pagamento, a retirada e o documento |
+| `payment-gateway` | 8084 (9084) | gateway de pagamento simulado (Pix sintético) |
+| `postgres` | 5440 | um banco por serviço, cada um com a *role* dona (migrations) e a da aplicação (só dados) |
+| `localstack` | 4566 | SQS (fila FIFO + DLQ), KMS (duas chaves), S3 (bucket cifrado) e Secrets Manager, locais |
+| `keycloak` | 8180 | login OIDC: papéis `CUSTOMER`, `SELLER`, `ADMIN` e os usuários sintéticos |
+
 Todas as portas escutam só em `127.0.0.1`.
 
-| Contêiner | Porta | O que sobe |
-|---|---|---|
-| `postgres` | 5440 | bancos `vehicles`, `customers` e `sales`; para cada um, a *role* `<serviço>_owner` (dona do banco, roda as migrations) e a `<serviço>_app` (só conecta; a aplicação usa esta) |
-| `localstack` | 4566 | fila `vehicle-commands.fifo` com DLQ (5 recebimentos), chaves KMS `alias/customers-data` e `alias/documents`, bucket `transfer-documents` (SSE-KMS, versionado, sem acesso público) e os segredos `revenda/payment-gateway-api-key` e `revenda/payment-webhook-secret` |
-| `keycloak` | 8180 | realm `revenda`: papéis `CUSTOMER`, `SELLER` e `ADMIN`, clientes `revenda-web`, `sales-service` e `customers-service`, usuários sintéticos |
+### 2. Conferir
 
-O `.env` é git-ignorado e só tem valores de desenvolvimento. Para recomeçar do zero (apaga os bancos
-locais): `docker compose down -v`.
+```bash
+docker compose --profile apps ps
+curl http://localhost:9083/actuator/health
+```
+
+Cada serviço responde `{"status":"UP"}` na porta de gestão, de 9081 a 9084. (No PowerShell 5, use `curl.exe`.)
+
+### 3. Comprar um carro pelo Postman
+
+1. **Import** → os dois arquivos da pasta [`postman/`](postman); no canto superior direito, o ambiente
+   `revenda-local`.
+2. No ambiente, preencha o **valor atual** de `salesServiceClientSecret`, `customersServiceClientSecret`,
+   `paymentGatewayApiKey` e `paymentWebhookSecret` com os valores do seu `infra/.env`
+   ([qual é qual](#antes-de-começar)).
+3. Na pasta **00 · Entrar**, entre como `vera.vendedora` e como `ana.cliente` — as senhas de desenvolvimento
+   estão em [`infra/keycloak/realm.json`](infra/keycloak/realm.json) ([passo a passo](#entrar-com-cada-pessoa)).
+4. No **Runner**, rode a pasta **04 · Cadastro do cliente** (a Ana cria o cadastro) e depois a
+   **05 · Compra — fluxo feliz**.
+
+A pasta 05 é o processo inteiro do enunciado:
+
+1. a vendedora cadastra um veículo;
+2. a Ana reserva e recebe o código Pix numa chamada só — o preço é o do estoque, nunca o que o cliente manda;
+3. o gateway simulado "paga" o Pix e avisa o `sales` por um webhook assinado: a compra fica `PAID` e o estoque
+   marca o veículo como vendido, pela fila;
+4. a vendedora confirma a retirada com o CPF do documento que a pessoa apresentou — conferido sem ninguém ver o
+   número do cadastro;
+5. a compra fica `COMPLETED`, o estoque dá baixa (`DELIVERED`) e o documento de transferência sai em PDF num
+   bucket cifrado;
+6. a Ana baixa o documento por um link que vale 5 minutos.
+
+As falhas do enunciado — reserva concorrente, pagamento não feito, desistência antes e depois de pagar — estão
+na pasta 06. A ordem de todas as pastas está em [Testar com o Postman](#testar-com-o-postman).
+
+### 4. Ou pelo Swagger UI
+
+Cada serviço publica o contrato e o Swagger UI: [estoque](http://localhost:8081/swagger-ui.html),
+[cadastro](http://localhost:8082/swagger-ui.html) e [compras](http://localhost:8083/swagger-ui.html). Clique em
+**Authorize**, escolha o login `oidc` (o *client secret* fica vazio) e entre com um
+[usuário sintético](#usuários-sintéticos). O pagamento se simula no gateway, com `curl`
+([Simular o pagamento](#simular-o-pagamento)).
+
+### Parar e recomeçar
+
+```bash
+docker compose --profile apps down
+```
+
+Os bancos ficam no volume. Para recomeçar do zero, `docker compose --profile apps down -v` (apaga os bancos).
+Sem `--profile apps`, o compose sobe só o Postgres, o LocalStack e o Keycloak, para rodar os serviços pelo
+Maven ([Desenvolvimento](#desenvolvimento)).
+
+## Arquitetura
+
+```mermaid
+flowchart LR
+    web[Front-end / Postman / Swagger] -->|HTTPS + JWT| V[vehicles-service]
+    web --> C[customers-service]
+    web --> S[sales-service]
+    S -->|HTTP: reservar, ler o veículo| V
+    S -->|HTTP: elegibilidade, pagador, documento, conferir CPF| C
+    S -->|outbox → SQS FIFO: liberar, vender, dar baixa| Q[(vehicle-commands.fifo)]
+    Q --> V
+    S -->|HTTP: cobrar, cancelar, estornar| G[payment-gateway-mock]
+    G -->|webhook assinado| S
+    V --- VDB[(vehicles)]
+    C --- CDB[(customers\ncampos cifrados)]
+    S --- SDB[(sales\nsaga, outbox)]
+    C -->|chave de dados| K[KMS]
+    S -->|documento PDF| B[(S3)]
+    IdP[Keycloak / Cognito] -.JWT.-> web
+```
+
+Três serviços Spring Boot, cada um com o próprio banco, e um gateway de pagamento simulado. Cada serviço sobe
+sozinho e fala com os outros só por HTTP, por uma fila ou por webhook — nenhum lê o banco de outro. No CI, cada
+um é compilado e testado num job próprio.
+
+| Módulo | Responsável por | Guarda |
+|---|---|---|
+| `common` | biblioteca de infraestrutura: dinheiro, erros, idempotência, outbox, auditoria, cifra, mascaramento, segurança, métricas (sem regra de negócio) | — |
+| `vehicles-service` | cadastro, edição, vitrine, vendidos, reserva condicional, comandos da fila (liberar, vender, dar baixa) | veículos |
+| `customers-service` | cadastro do comprador, mascaramento, revelação de CPF auditada | o dado pessoal, cifrado |
+| `sales-service` | a compra e a saga, webhook, prazos, retirada, documento de transferência | compras, linha do tempo, outbox — só ids, nunca dado pessoal |
+| `payment-gateway-mock` | cobrança Pix sintética, cancelamento, estorno, webhook assinado | memória |
+
+**Stack:** Java 21 · Spring Boot 4.1 · PostgreSQL 16 · Flyway · `JdbcClient` · Spring Security (OAuth2 resource
+server) · AWS SDK v2 · Micrometer · Testcontainers · Maven multi-módulo (com *wrapper*). Localmente, o LocalStack
+faz a AWS e o Keycloak faz o Cognito; o pacote base é `com.revenda`.
+
+**A compra é uma saga orquestrada.** O `sales` guarda o estado da compra no próprio banco e conduz cada passo:
+reserva o veículo (um `UPDATE` condicional — de dez pedidos ao mesmo tempo, um vence), pede a cobrança, espera o
+webhook assinado e confirma a retirada. Cada mudança que outro serviço precisa saber entra num *outbox* na mesma
+transação e sai depois, com retentativa: o estoque recebe liberar, vender e dar baixa pela fila, na ordem de cada
+carro, e o gateway recebe cancelar e estornar. Quando algo dá errado — o carro já reservado, o Pix não pago no
+prazo, a desistência —, a compensação desfaz o que foi feito: libera o veículo, cancela a cobrança ou estorna. Uma
+varredura expira as compras vencidas e recupera as que pararam no meio. Detalhes em
+[A compra e a saga](#a-compra-e-a-saga).
+
+**O dado pessoal mora num serviço só.** CPF, e-mail, telefone, nascimento e endereço ficam só no `customers`,
+cifrados pela aplicação (AES-256-GCM, com a chave em envelope pelo KMS); o CPF tem um *blind index* (HMAC) para a
+unicidade e a conferência sem decifrar. O `sales` guarda só ids e pede o dado na hora em que precisa — cobrança e
+documento —, sem gravar. Respostas e log mostram CPF, e-mail e telefone mascarados; o CPF inteiro só o
+administrador vê, com motivo, e cada revelação é auditada. Toda ação que muda estado e toda leitura de dado
+completo grava auditoria na mesma transação, numa tabela em que a aplicação só insere.
+
+## Decisões principais
+
+| Decisão | Por quê |
+|---|---|
+| Três serviços com banco próprio e um gateway simulado | o dado pessoal fica isolado num serviço; estoque e compra mudam separados; o gateway faz o papel de um provedor externo |
+| Saga **orquestrada** pelo `sales`, com o estado no banco | um lugar só sabe em que passo cada compra está; ela se recupera depois de uma queda; é mais fácil de testar que uma coreografia de eventos |
+| Reserva por `UPDATE … WHERE status = 'AVAILABLE'` | o banco resolve a disputa pelo carro, sem "ler e depois gravar" |
+| *Outbox* na transação da mudança e fila SQS FIFO com o veículo como grupo | nenhum comando se perde nem sai de uma mudança desfeita; os de um mesmo carro chegam em ordem; o consumidor ignora a repetição |
+| Pagamento confirmado só pelo webhook assinado (HMAC com carimbo de tempo) | o cliente não consegue se declarar pago; aviso repetido, atrasado ou com outro valor tem destino certo |
+| Cifra de campo com chave em envelope pelo KMS e *blind index* do CPF | uma cópia do banco não expõe o dado; a chave-mestra nunca sai do KMS |
+| Regras de acesso de cada serviço numa lista só, conferida por um teste contra a tabela da API | quem pode chamar o quê fica num lugar, e um papel ou *scope* trocado deixa o build vermelho |
+| `JdbcClient` e Flyway, sem JPA | o SQL fica à vista: `UPDATE` condicional, `FOR UPDATE` e `SKIP LOCKED` explícitos |
+| Keycloak no local, Cognito na nuvem; LocalStack 4.14.0 para a AWS | o mesmo OIDC e o mesmo SDK nos dois; quem clona roda sem criar conta em serviço nenhum |
+| Actuator só numa porta de gestão | `health` e métricas fora de qualquer rota publicada |
+| Um `Dockerfile` para os quatro serviços | as quatro imagens iguais em tudo, menos o módulo compilado |
+
+## Simular o pagamento
+
+O `payment-gateway-mock` faz o papel do provedor de Pix: a compra só fica paga quando ele avisa o `sales` pelo
+webhook assinado. Para "pagar", ache a cobrança pelo id da compra e simule o pagamento, com a chave de API do
+`infra/.env`:
+
+```bash
+set -a; . infra/.env; set +a
+curl -H "X-Api-Key: $PAYMENT_GATEWAY_API_KEY" "http://localhost:8084/charges?referenceId=<id da compra>"
+curl -X POST -H "X-Api-Key: $PAYMENT_GATEWAY_API_KEY" -H "Content-Type: application/json" \
+  -d '{"outcome":"PAID","deliveries":1}' http://localhost:8084/charges/<chargeId>/simulate
+```
+
+No PowerShell, carregue a chave com
+`$env:PAYMENT_GATEWAY_API_KEY = ((Get-Content infra/.env) -match '^PAYMENT_GATEWAY_API_KEY=' -split '=', 2)[1]` e use
+`curl.exe` com `$env:PAYMENT_GATEWAY_API_KEY`.
+
+A resposta do `simulate` é `202`, e o webhook chega ao `sales` em seguida: a compra passa a `PAID`.
+`"outcome": "PAID_WRONG_AMOUNT"` paga R$ 1,00 a menos (a compra falha e o valor é estornado) e `"deliveries": 2`
+manda o mesmo aviso duas vezes (o `sales` aplica uma). Na pasta 05 do Postman isso já é um passo. Detalhes em
+[O gateway de pagamento simulado](#o-gateway-de-pagamento-simulado).
+
+## Usuários sintéticos
+
+Os usuários de teste e as senhas de desenvolvimento estão em
+[`infra/keycloak/realm.json`](infra/keycloak/realm.json) — todos com e-mail `@example.test`:
+
+| Usuário | Papel | Para testar |
+|---|---|---|
+| `ana.cliente@example.test` | `CUSTOMER` | compra com cadastro completo |
+| `duda.cliente@example.test` | `CUSTOMER` | segunda compradora: reserva antes da Ana no cenário de reserva concorrente |
+| `bruno.sem-cadastro@example.test` | `CUSTOMER` | compra sem cadastro (deve ser recusada) |
+| `caio.menor@example.test` | `CUSTOMER` | comprador menor de idade (deve ser recusado) |
+| `vera.vendedora@example.test` | `SELLER` | cadastro de veículos e confirmação da retirada |
+| `otto.admin@example.test` | `ADMIN` | revelação de CPF com motivo e pedidos de titular |
+
+No ambiente local, ninguém configura segundo fator: todos entram só com e-mail e senha, para quem avalia
+o projeto conseguir usar o sistema sem um app autenticador. Na nuvem, o Cognito exige MFA de `SELLER` e
+`ADMIN` — a equipe vê dados de clientes e revela CPF, e uma senha vazada sozinha não pode bastar para
+isso. O Keycloak suporta a mesma regra: basta pôr `"requiredActions": ["CONFIGURE_TOTP"]` nesses dois
+usuários do `realm.json` e recriar o contêiner. Quem se cadastra pela tela do Keycloak recebe o papel `CUSTOMER`. Os segredos dos clientes de serviço
+vêm do `.env`.
+
+O realm só é importado quando o contêiner do Keycloak é criado. Se o seu foi criado antes de um usuário
+novo ou uma mudança entrar no `realm.json`, recrie-o — isso apaga as sessões e qualquer segundo fator já
+configurado:
+
+```bash
+cd infra
+docker compose up -d --force-recreate keycloak
+```
+
+## Observabilidade
+
+**Saúde.** Cada serviço tem uma porta de gestão, de 9081 a 9084, com o Actuator: `GET /actuator/health` e as
+sondas `/actuator/health/liveness` e `/actuator/health/readiness`. A prontidão só fica `UP` com o banco
+respondendo; a vivacidade não depende dele, para um banco fora do ar não reiniciar o contêiner. Nenhum detalhe dos
+componentes aparece.
+
+**Métricas.** `GET /actuator/prometheus`, na mesma porta. As de negócio não têm id, `sub` nem dado pessoal — só
+contagens:
+
+| Métrica | O quê |
+|---|---|
+| `sales_purchases{status}` | compras em cada status agora |
+| `sales_purchase_transitions_total{status,payment_status,reason}` | cada passo da compra, contado depois do *commit*: reservas recusadas, pagamentos, expirações, estornos… |
+| `sales_payment_webhooks_rejected_total{cause}` | avisos de pagamento recusados: sem assinatura ou com assinatura inválida |
+| `outbox_messages_failed{destination}` e `outbox_messages_oldest_age_seconds{destination}` | comandos que desistiram depois de todas as tentativas e há quanto tempo espera o mais antigo |
+| `vehicles_reservations_total{outcome}` | pedidos de reserva: reservados, repetidos pela mesma compra, recusados |
+| `customers_cpf_reveals_total` | revelações de CPF pelo administrador |
+
+As contagens lidas do banco (compras por status e outbox) são refeitas no máximo a cada 15 segundos, para a coleta
+não virar uma consulta.
+
+**A porta de gestão não é a do serviço.** A porta do serviço não tem `/actuator`. A de gestão escuta só em
+`127.0.0.1` (`MANAGEMENT_ADDRESS`; no contêiner, `0.0.0.0`, com a porta publicada só no `127.0.0.1` do host) e
+abre sem token só o `health` e o `prometheus`; o resto do Actuator não existe. Na nuvem, ela fica fora do
+balanceador e do API Gateway: o *health check* do contêiner e um coletor na mesma tarefa a leem por `localhost` e
+mandam ao CloudWatch, onde ficam os alarmes (mensagem na DLQ, outbox com falha, webhook recusado, revelações de CPF
+acima do normal). As mensagens na DLQ são uma métrica do próprio SQS.
+
+**Log.** Texto no local e JSON na nuvem (`LOGGING_STRUCTURED_FORMAT_CONSOLE=ecs`), sempre com o `X-Request-Id`
+e passando por um mascarador de CPF, e-mail, telefone, CEP e token.
+
+## Imagens e implantação
+
+Um único [`Dockerfile`](Dockerfile), na raiz, gera a imagem de qualquer um dos quatro serviços:
+
+```bash
+docker build --build-arg SERVICE=sales-service -t revenda-veiculos/sales-service .
+```
+
+- **Multi-stage:** compila com o Maven num JDK 21 (com as dependências em cache) e leva para a imagem final só as
+  camadas do Spring Boot — dependências, carregador e aplicação, da que menos muda para a que mais muda.
+- **Imagem base fixa:** `eclipse-temurin:21.0.13_9-jre-alpine`, só o JRE, sem compilador nem Maven.
+- **Usuário não root:** o processo roda como `app` (uid 10001), e os arquivos da aplicação são só leitura para ele.
+- **Pronta para a nuvem:** toda configuração vem de variável de ambiente (o LocalStack entra só pelo
+  `AWS_ENDPOINT_URL`), as migrations rodam na subida com a *role* dona do banco, o `health` serve ao balanceador e
+  os segredos chegam por variável, que o ECS preenche do Secrets Manager. A memória da JVM acompanha o limite do
+  contêiner (`MaxRAMPercentage=75`).
+
+O perfil `apps` do [`infra/docker-compose.yml`](infra/docker-compose.yml) constrói as quatro imagens e as liga ao
+Postgres, ao LocalStack e ao Keycloak pela rede do compose. Duas diferenças entre o que o navegador e o contêiner
+enxergam são resolvidas por variável: o token é emitido para `localhost:8180`, mas o serviço lê as chaves públicas
+em `keycloak:8180` (`OIDC_JWK_SET_URI`; o emissor do token continua conferido); e o `sales` grava o documento em
+`localstack:4566`, mas assina o link para `localhost:4566` (`DOCUMENTS_LINK_ENDPOINT`), o endereço que o navegador
+alcança. O Keycloak emite todo token com o emissor `http://localhost:8180` (`KC_HOSTNAME`), venha o pedido do
+navegador ou de um contêiner.
+
+## Desenvolvimento
+
+### O ambiente local por dentro
+
+Sem o perfil `apps`, o compose sobe só a infraestrutura (`cd infra && docker compose up -d`), e os serviços rodam
+pelo Maven ([Rodar um serviço fora do contêiner](#rodar-um-serviço-fora-do-contêiner)). O que cada contêiner
+prepara:
+
+| Contêiner | O que sobe |
+|---|---|
+| `postgres` | bancos `vehicles`, `customers` e `sales`; para cada um, a *role* `<serviço>_owner` (dona do banco, roda as migrations) e a `<serviço>_app` (só conecta; a aplicação usa esta) |
+| `localstack` | fila `vehicle-commands.fifo` com DLQ (5 recebimentos), chaves KMS `alias/customers-data` e `alias/documents`, bucket `transfer-documents` (SSE-KMS, versionado, sem acesso público) e os segredos `revenda/payment-gateway-api-key` e `revenda/payment-webhook-secret` |
+| `keycloak` | realm `revenda`: papéis `CUSTOMER`, `SELLER` e `ADMIN`, clientes `revenda-web`, `sales-service` e `customers-service`, usuários sintéticos |
 
 O LocalStack não guarda estado: a cada subida o `init.sh` cria tudo de novo, e o PostgreSQL continua com
 o volume. Por isso a chave `alias/customers-data` nasce sempre com o mesmo id e o mesmo material, tirado
@@ -71,7 +310,9 @@ sintético tem um `id` fixo no arquivo, e o `sub` do token, que liga a conta ao 
 fica o mesmo depois de `docker compose down` e `up`. Sem esse `id`, o cadastro continuaria no banco, mas
 `GET /customers/me` responderia 404.
 
-### 2. Build e testes
+### Build e testes
+
+Com o JDK 21 no `JAVA_HOME` (o Maven vem pelo *wrapper*: `./mvnw`, ou `.\mvnw.cmd` no Windows):
 
 ```bash
 ./mvnw -B verify
@@ -92,8 +333,9 @@ A base de teste fica no test-jar do `common` (`com.revenda.common.test`):
 | `ApiDriver` | chama a API em JSON com o token de quem chama e uma `Idempotency-Key` nova em todo `POST` |
 | `SyntheticData` | CPF sorteado com dígito verificador válido, e-mail em `@example.test`, placa, chassi e RENAVAM válidos — só dado inventado |
 | `MovableClock` | relógio que o teste adianta |
-| `ServiceFoundationContract`, `ResourceServerContract` | testes que todo serviço herda: `health`, formato de erro, log mascarado, token |
+| `ServiceFoundationContract`, `ResourceServerContract` | testes que todo serviço herda: `health` e `prometheus` só na porta de gestão, prontidão com o banco, formato de erro, log mascarado, token |
 | `ServiceArchitectureRules` | regras de arquitetura que todo serviço roda no `<Serviço>ArchitectureTests` (abaixo) |
+| `RouteAccessMatrix` | o teste de acesso de cada serviço (abaixo) |
 
 #### Regras de arquitetura
 
@@ -103,7 +345,7 @@ código compilado, no `./mvnw -B verify`:
 
 | Regra | O que recusa |
 |---|---|
-| `domainIsPlainJava` | domínio que importa algo além de `java.*`, do próprio domínio e de `common.money`/`common.error` |
+| `domainIsPlainJava` | domínio que importa algo além de `java.*`, do próprio domínio e de `common.money`, `common.error` e `common.paging` |
 | `layersPointInward` | dependência para fora: domínio → aplicação, ou aplicação → infraestrutura |
 | `adaptersTalkToPorts` | adapter que usa a implementação do caso de uso em vez da porta (`…UseCase`, `…Port`) |
 | `inboundAdaptersDoNotReachOutbound` | controller, consumidor ou job que chama direto um adapter de saída |
@@ -118,12 +360,30 @@ código compilado, no `./mvnw -B verify`:
 
 A regra de uma camada que o serviço ainda não tem passa vazia e começa a valer quando a camada nasce. O
 `ServiceArchitectureRulesTests` do `common` prova cada regra contra um serviço de exemplo bem feito e
-contra uma classe que a quebra. O próprio `common` tem as dele: `common.money` e `common.error` sem
-Spring, e nenhuma classe que conheça um serviço.
+contra uma classe que a quebra. O próprio `common` tem as dele: `common.money`, `common.error` e
+`common.paging` sem Spring, e nenhuma classe que conheça um serviço.
 
-### 3. Rodar um serviço
+#### Teste de acesso
 
-O `install` vem uma vez antes do primeiro `spring-boot:run` (põe o `common` no repositório local do
+Cada serviço tem um `<Serviço>AccessTests` que escreve à mão a tabela de rotas da API — método, caminho, papéis e
+*scope* de cada uma — e confere três coisas contra ela:
+
+- as regras de acesso do serviço (o `SecurityRoutes`) são exatamente essa tabela;
+- todo endpoint que o serviço publica está na tabela, e toda rota da tabela tem um endpoint — rota nova sem regra
+  deixa o build vermelho;
+- cada rota chamada por sete chamadores — sem token, `CUSTOMER`, `SELLER`, `ADMIN`, serviço com o *scope* da rota,
+  serviço sem ele e um cliente de serviço desconhecido — recebe o que a tabela manda: `401`, `403` ou passa pela
+  segurança.
+
+No `sales`, a compra de um cliente pedida por outro responde `404` (nunca `403`) em cada rota de dono — detalhe,
+documento e desistência —, e uma rota de `CUSTOMER` com id no caminho que fique fora dessa lista reprova o teste.
+O gateway tem o dele: as cinco rotas, e cada uma sem a chave de API ou com a chave errada responde `401`. Trocar
+um papel ou um *scope* na regra do serviço deixa o teste vermelho.
+
+### Rodar um serviço fora do contêiner
+
+Para desenvolver, suba só a infraestrutura (`docker compose up -d`, sem o perfil `apps`, ou pare o contêiner do
+serviço que vai rodar: `docker compose stop sales`) e rode o serviço pelo Maven, na mesma porta. O `install` vem uma vez antes do primeiro `spring-boot:run` (põe o `common` no repositório local do
 Maven). As variáveis dos serviços têm o valor local como padrão, **menos as senhas**: o serviço com banco
 recebe as das *roles* do `infra/.env` — `DB_APP_PASSWORD` (aplicação, *role* `<serviço>_app`) e
 `DB_OWNER_PASSWORD` (migrations, *role* `<serviço>_owner`). Com o ambiente local de pé:
@@ -216,13 +476,14 @@ docker compose -f infra/docker-compose.yml exec postgres psql -U postgres -d cus
 ```
 
 ```bash
-curl http://localhost:8081/actuator/health
+curl http://localhost:9081/actuator/health
 ```
 
-Resposta esperada: `{"groups":["liveness","readiness"],"status":"UP"}`. Só o `health` fica exposto;
-os demais endpoints do Actuator respondem `404`.
+Resposta esperada: `{"groups":["liveness","readiness"],"status":"UP"}`, na porta de gestão (`MANAGEMENT_PORT`,
+9081 a 9084). Lá só o `health` e o `prometheus` ficam expostos; a porta do serviço não tem Actuator
+([Observabilidade](#observabilidade)).
 
-### 4. Contrato (OpenAPI) e Swagger UI
+### Contrato (OpenAPI) e Swagger UI
 
 Cada serviço publica o contrato gerado do código em `/v3/api-docs` e o Swagger UI em
 `/swagger-ui.html` — no estoque, `http://localhost:8081/swagger-ui.html`. Os dois abrem sem token.
@@ -242,7 +503,7 @@ conferido, e a equipe logada vê o detalhe completo do veículo.
 
 `OPENAPI_ENABLED=false` desliga o contrato e o Swagger UI (na nuvem eles não são publicados).
 
-## Rotas prontas
+## Rotas e como funcionam
 
 | Serviço | Rota | Quem | O quê |
 |---|---|---|---|
@@ -543,7 +804,7 @@ CPF que o comprador apresentou na loja, só com números ou com pontos e traço:
 
 O `payment-gateway-mock` faz o papel do provedor de Pix: o `sales` cria a cobrança, mostra o código ao
 comprador e só considera a compra paga quando o gateway avisa pelo webhook assinado. Toda rota pede a chave
-de API no cabeçalho `X-Api-Key` (sem ela, ou errada, `401 UNAUTHENTICATED`), menos o `GET /actuator/health`.
+de API no cabeçalho `X-Api-Key` (sem ela, ou errada, `401 UNAUTHENTICATED`); o `health` fica na porta de gestão, 9084.
 As cobranças ficam em memória e somem quando o gateway para.
 
 ```json
@@ -691,36 +952,6 @@ Três índices únicos parciais garantem as regras no próprio banco: uma compra
 `AWAITING_PAYMENT`) por cliente; um dono por veículo (`RESERVED` em diante, menos as encerradas); uma compra por
 cobrança. Toda mudança de compra trava a linha (`SELECT … FOR UPDATE`) e grava sobre a versão travada.
 
-## Usuários sintéticos
-
-Os usuários de teste e as senhas de desenvolvimento estão em
-[`infra/keycloak/realm.json`](infra/keycloak/realm.json) — todos com e-mail `@example.test`:
-
-| Usuário | Papel | Para testar |
-|---|---|---|
-| `ana.cliente@example.test` | `CUSTOMER` | compra com cadastro completo |
-| `duda.cliente@example.test` | `CUSTOMER` | segunda compradora: reserva antes da Ana no cenário de reserva concorrente |
-| `bruno.sem-cadastro@example.test` | `CUSTOMER` | compra sem cadastro (deve ser recusada) |
-| `caio.menor@example.test` | `CUSTOMER` | comprador menor de idade (deve ser recusado) |
-| `vera.vendedora@example.test` | `SELLER` | cadastro de veículos e confirmação da retirada |
-| `otto.admin@example.test` | `ADMIN` | revelação de CPF com motivo e pedidos de titular |
-
-No ambiente local, ninguém configura segundo fator: todos entram só com e-mail e senha, para quem avalia
-o projeto conseguir usar o sistema sem um app autenticador. Na nuvem, o Cognito exige MFA de `SELLER` e
-`ADMIN` — a equipe vê dados de clientes e revela CPF, e uma senha vazada sozinha não pode bastar para
-isso. O Keycloak suporta a mesma regra: basta pôr `"requiredActions": ["CONFIGURE_TOTP"]` nesses dois
-usuários do `realm.json` e recriar o contêiner. Quem se cadastra pela tela do Keycloak recebe o papel `CUSTOMER`. Os segredos dos clientes de serviço
-vêm do `.env`.
-
-O realm só é importado quando o contêiner do Keycloak é criado. Se o seu foi criado antes de um usuário
-novo ou uma mudança entrar no `realm.json` (como o *scope* `vehicles.read` do `sales-service`), recrie-o — isso apaga as sessões e qualquer segundo fator já
-configurado:
-
-```bash
-cd infra
-docker compose up -d --force-recreate keycloak
-```
-
 ## Testar com o Postman
 
 A pasta [`postman/`](postman) tem a coleção com **todas as rotas da API**, cada uma com a descrição do
@@ -733,16 +964,15 @@ caso de uso, o papel e o que deve aparecer, e testes do contrato:
 ### Antes de começar
 
 1. Use o **Postman desktop**: o Postman na web não alcança `localhost`.
-2. Suba o ambiente local e os quatro serviços (seções acima), cada um num terminal — o serviço com banco
-   com as senhas do `infra/.env`, como na seção "Rodar um serviço":
+2. Suba tudo, como em [Comece aqui](#comece-aqui):
 
    ```bash
-   ./mvnw -B install -DskipTests
-   ./mvnw -pl vehicles-service spring-boot:run
-   ./mvnw -pl customers-service spring-boot:run
-   ./mvnw -pl sales-service spring-boot:run
-   ./mvnw -pl payment-gateway-mock spring-boot:run
+   cd infra
+   docker compose --profile apps up -d --build --wait
    ```
+
+   (Ou a infraestrutura e cada serviço pelo Maven, como em
+   [Rodar um serviço fora do contêiner](#rodar-um-serviço-fora-do-contêiner): a coleção usa as mesmas portas.)
 
 3. **Import** → os dois arquivos de `postman/`. No canto superior direito, escolha o ambiente
    `revenda-local`.
@@ -785,7 +1015,7 @@ requisição para a outra pelas variáveis da coleção (`vehicleId`, `customerI
 
 | Pasta | O que mostra |
 |---|---|
-| 01 · Ambiente e segurança | `health` dos quatro serviços; `401` sem token ou com token inválido; `403` de token de pessoa em rota interna; `X-Request-Id` |
+| 01 · Ambiente e segurança | `health` dos quatro serviços e as métricas do `sales`, na porta de gestão; `401` sem token ou com token inválido; `403` de token de pessoa em rota interna; `X-Request-Id` |
 | 02 · Estoque (vendedora) | cadastrar e editar veículo, `Idempotency-Key` (repetida e sem ela), validação, `version`, vendidos |
 | 03 · Vitrine pública | vitrine por preço crescente, filtros, paginação, sem placa nem chassi para o visitante |
 | 04 · Cadastro do cliente | cadastro com CPF mascarado, e-mail do token, CPF repetido ou inválido |
@@ -801,7 +1031,9 @@ requisição para a outra pelas variáveis da coleção (`vehicleId`, `customerI
   minuto) para não esbarrar no limite de taxa, e repete por até 20 s as consultas que esperam um efeito
   assíncrono (webhook, fila, documento). A pasta 04 leva cerca de um minuto por isso.
 - A expiração (06.8) só acontece em tempo de teste com o prazo de pagamento curto: suba o `sales` com
-  `PAYMENT_WINDOW=PT1M`. Com o prazo padrão (30 minutos), a pasta desiste da compra e segue.
+  `PAYMENT_WINDOW=PT1M` (no compose, `PAYMENT_WINDOW=PT1M docker compose --profile apps up -d sales`; no
+  PowerShell, `$env:PAYMENT_WINDOW = "PT1M"` antes). Com o prazo padrão (30 minutos), a pasta desiste da compra e
+  segue.
 - Os dados são sintéticos: CPFs com dígito válido fixos nas variáveis da coleção, e-mails
   `@example.test`, e placa, chassi e RENAVAM novos a cada execução. A coleção pode rodar quantas vezes
   quiser; nas seguintes, o cadastro já existe e responde `409 CUSTOMER_ALREADY_REGISTERED`, o que os
@@ -809,9 +1041,10 @@ requisição para a outra pelas variáveis da coleção (`vehicleId`, `customerI
 - Toda resposta dos serviços passa pelos testes `[contrato]`: `X-Request-Id` no cabeçalho, erro no
   formato `{ code, message, requestId, fields }` com o mesmo `requestId`, dinheiro em centavos inteiros.
 
-**Rota ainda não implementada** responde `401` sem token e `404` com token, e os testes dela falham até a
-etapa que a cria. Hoje passam inteiras a 01 (com os quatro serviços de pé), a 02 e a 03 (com o
-`vehicles-service` de pé e, na 02, o token de serviço que a 01 guarda).
+Com os quatro serviços de pé, passam inteiras todas as pastas menos a **08 · LGPD** e a requisição da retenção
+na **10** (`GET /internal/customers/…/retention`, do `sales`): exportar os próprios dados, pedir a exclusão e a
+retenção ainda não estão implementadas e respondem `404` (ou `403` na rota interna não declarada). Os testes dessas
+requisições falham até elas existirem.
 
 ### Pela linha de comando
 
@@ -837,8 +1070,10 @@ revenda-veiculos/
 ├── customers-service/
 ├── sales-service/
 ├── payment-gateway-mock/
+├── Dockerfile               a imagem de qualquer serviço (--build-arg SERVICE=…)
+├── .dockerignore
 ├── infra/
-│   ├── docker-compose.yml
+│   ├── docker-compose.yml   infraestrutura e, no perfil apps, os quatro serviços
 │   ├── .env.example
 │   ├── postgres/init.sh     bancos e roles
 │   ├── localstack/init.sh   fila, chaves, bucket e segredos
@@ -854,6 +1089,8 @@ revenda-veiculos/
 Toda imagem do Compose tem versão fixa. O LocalStack está na **4.14.0**: a partir de março de 2026 as
 imagens novas exigem token de conta, e a 4.14.0 é a última que sobe sem cadastro — assim qualquer pessoa
 que clona o repositório roda tudo sem criar conta em serviço externo. Na nuvem os serviços são os da AWS.
+As imagens dos serviços partem de `eclipse-temurin:21.0.13_9-jdk-alpine` (compilação) e
+`eclipse-temurin:21.0.13_9-jre-alpine` (execução), também com a versão exata.
 
 ## CI
 

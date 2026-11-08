@@ -13,14 +13,13 @@ import java.util.List;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 /**
- * Toda rota pede a chave de API no {@code X-Api-Key}, menos o {@code GET /actuator/health}. Sem ela ou errada,
- * {@code 401 UNAUTHENTICATED} no formato de erro comum. A comparação é em tempo constante.
+ * Toda rota pede a chave de API no {@code X-Api-Key}. Sem ela ou errada, {@code 401 UNAUTHENTICATED} no formato de
+ * erro comum. A comparação é em tempo constante. O {@code health} fica na porta de gestão, fora deste filtro.
  */
 public class ApiKeyFilter extends OncePerRequestFilter {
 
     public static final String HEADER = "X-Api-Key";
     static final String MESSAGE = "Envie a chave de API do gateway no cabeçalho X-Api-Key.";
-    private static final String HEALTH = "/actuator/health";
 
     private final byte[] apiKey;
     private final ApiErrorWriter errors;
@@ -28,12 +27,6 @@ public class ApiKeyFilter extends OncePerRequestFilter {
     public ApiKeyFilter(String apiKey, ApiErrorWriter errors) {
         this.apiKey = apiKey.getBytes(StandardCharsets.UTF_8);
         this.errors = errors;
-    }
-
-    @Override
-    protected boolean shouldNotFilter(HttpServletRequest request) {
-        String path = request.getRequestURI().substring(request.getContextPath().length());
-        return "GET".equals(request.getMethod()) && (path.equals(HEALTH) || path.startsWith(HEALTH + "/"));
     }
 
     @Override

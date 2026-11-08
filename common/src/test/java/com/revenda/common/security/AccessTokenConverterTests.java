@@ -13,10 +13,10 @@ class AccessTokenConverterTests {
 
     private static final ResourceServerProperties.Oidc KEYCLOAK = new ResourceServerProperties.Oidc(
             "https://idp.example.test/realms/revenda", "realm_access.roles", "",
-            List.of("revenda-web"), List.of("sales-service"));
+            List.of("revenda-web"), List.of("sales-service"), null);
     private static final ResourceServerProperties.Oidc COGNITO = new ResourceServerProperties.Oidc(
             "https://cognito-idp.sa-east-1.amazonaws.com/sa-east-1_exemplo", "cognito:groups", "revenda/",
-            List.of("web-client-id"), List.of("sales-client-id"));
+            List.of("web-client-id"), List.of("sales-client-id"), null);
 
     @Test
     void personFromKeycloakKeepsOnlyTheKnownRoles() {
