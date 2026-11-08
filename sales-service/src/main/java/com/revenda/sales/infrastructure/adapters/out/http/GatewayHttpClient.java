@@ -1,11 +1,12 @@
 package com.revenda.sales.infrastructure.adapters.out.http;
 
+import com.revenda.common.http.ServiceCalls;
 import com.revenda.common.money.Money;
 import com.revenda.common.outbox.OutboxDestination;
 import com.revenda.common.outbox.OutboxMessage;
 import com.revenda.common.outbox.OutboxSender;
 import com.revenda.sales.domain.model.CommandDestination;
-import com.revenda.sales.domain.model.DependencyUnavailableException;
+import com.revenda.common.error.DependencyUnavailableException;
 import com.revenda.sales.domain.model.IssuedCharge;
 import com.revenda.sales.domain.model.Payer;
 import com.revenda.sales.domain.model.SagaCommand.CancelCharge;
@@ -43,7 +44,7 @@ class GatewayHttpClient implements IssueChargePort, OutboxSender {
 
     @Override
     public IssuedCharge issue(UUID purchaseId, Money amount, Instant dueAt, Payer payer) {
-        NeighborCalls.requireNoTransaction(NEIGHBOR);
+        ServiceCalls.requireNoTransaction(NEIGHBOR);
         try {
             CreatedCharge created = rest.post()
                     .uri("/charges")
@@ -53,7 +54,7 @@ class GatewayHttpClient implements IssueChargePort, OutboxSender {
                     .body(CreatedCharge.class);
             return new IssuedCharge(created.chargeId(), created.pixCode(), created.dueAt());
         } catch (RuntimeException failure) {
-            throw new DependencyUnavailableException(NEIGHBOR, NeighborCalls.describe(failure));
+            throw new DependencyUnavailableException(NEIGHBOR, ServiceCalls.describe(failure));
         }
     }
 
@@ -64,7 +65,7 @@ class GatewayHttpClient implements IssueChargePort, OutboxSender {
 
     @Override
     public void send(OutboxMessage message) {
-        NeighborCalls.requireNoTransaction(NEIGHBOR);
+        ServiceCalls.requireNoTransaction(NEIGHBOR);
         ChargeCommand command = json.readValue(message.payload(), ChargeCommand.class);
         switch (message.type()) {
             case CancelCharge.TYPE -> cancel(command);

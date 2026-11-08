@@ -8365,9 +8365,10 @@
 							"script": {
 								"type": "text/javascript",
 								"exec": [
-									"pm.test(\"responde 409 CUSTOMER_HAS_RETAINED_DATA\", () => {",
+									"pm.test('responde 409 com a data da anonimização', () => {",
 									"    pm.response.to.have.status(409);",
 									"    pm.expect(pm.response.json().code).to.eql('CUSTOMER_HAS_RETAINED_DATA');",
+									"    pm.expect(pm.response.json().message).to.match(/\\d{2}\\/\\d{2}\\/\\d{4}/);",
 									"});"
 								]
 							}
@@ -8375,14 +8376,9 @@
 					],
 					"request": {
 						"method": "POST",
-						"header": [
-							{
-								"key": "Idempotency-Key",
-								"value": "{{$guid}}"
-							}
-						],
+						"header": [],
 						"url": "{{customersUrl}}/customers/me/deletion",
-						"description": "**UC-15** · `CUSTOMER`. Com venda dentro do prazo legal de retenção, os dados ficam até o fim do prazo e a anonimização é agendada. Deve aparecer: `409 CUSTOMER_HAS_RETAINED_DATA`, com a `message` dizendo isso. (Sem venda no prazo, o cadastro é anonimizado na hora — coberto pelos testes automatizados do `customers`.)",
+						"description": "**UC-15** · `CUSTOMER`. Pergunta ao `sales` até quando guardar os dados: com venda dentro do prazo legal de retenção (5 anos depois da venda), os dados ficam até o fim do prazo e o job de retenção anonimiza nessa data. Deve aparecer: `409 CUSTOMER_HAS_RETAINED_DATA`, com a data na `message`. Repetir não muda nada. (Sem venda no prazo, o cadastro é anonimizado na hora, `200 { status: ANONYMIZED }` — coberto pelos testes automatizados do `customers`.)",
 						"auth": {
 							"type": "bearer",
 							"bearer": [
@@ -8396,6 +8392,44 @@
 					},
 					"response": [],
 					"id": "4ea595c3-b61e-5f39-920e-7dd49d580584"
+				},
+				{
+					"name": "Ana exporta de novo: o pedido aparece",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('o pedido de exclusão está registrado', () => {",
+									"    pm.response.to.have.status(200);",
+									"    const body = pm.response.json();",
+									"    pm.expect(body.customer.deletionRequestedAt).to.be.a('string');",
+									"    pm.expect(body.history.map(entry => entry.action)).to.include('CUSTOMER_DELETION_REQUESTED');",
+									"    pm.expect(body.customer.cpfMasked).to.match(/^\\*\\*\\*\\./);",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": "{{customersUrl}}/customers/me/export",
+						"description": "**UC-15**. O pedido de exclusão agendado fica no cadastro e na auditoria. Deve aparecer: `200` com `customer.deletionRequestedAt` preenchido e `CUSTOMER_DELETION_REQUESTED` no `history`, sem a identidade de quem fez.",
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{tokenAna}}",
+									"type": "string"
+								}
+							]
+						}
+					},
+					"response": [],
+					"id": "f1ea2019-0f2e-548c-a7a8-fe14f05a826c"
 				}
 			]
 		},

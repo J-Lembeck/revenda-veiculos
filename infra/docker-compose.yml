@@ -133,6 +133,10 @@ services:
       DB_URL: jdbc:postgresql://postgres:5432/customers
       DB_APP_PASSWORD: ${CUSTOMERS_DB_APP_PASSWORD:?}
       DB_OWNER_PASSWORD: ${CUSTOMERS_DB_OWNER_PASSWORD:?}
+      OIDC_CLIENT_SECRET: ${CUSTOMERS_SERVICE_CLIENT_SECRET:?}
+      OIDC_CLIENT_TOKEN_URI: http://keycloak:8180/realms/revenda/protocol/openid-connect/token
+      SALES_BASE_URL: http://sales:8083
+      CUSTOMERS_RETENTION_CRON: ${CUSTOMERS_RETENTION_CRON:-0 0 3 * * *}
     ports:
       - "127.0.0.1:8082:8082"
       - "127.0.0.1:9082:9082"

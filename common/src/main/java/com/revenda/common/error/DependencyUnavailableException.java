@@ -1,4 +1,4 @@
-package com.revenda.sales.domain.model;
+package com.revenda.common.error;
 
 /**
  * Um vizinho do caminho síncrono não respondeu, respondeu com erro ou com algo que não se lê. A mensagem diz qual e

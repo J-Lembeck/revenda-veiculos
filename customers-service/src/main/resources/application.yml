@@ -9,6 +9,18 @@ spring:
     url: ${DB_URL:jdbc:postgresql://localhost:5440/customers}
     user: ${DB_OWNER_USER:customers_owner}
     password: ${DB_OWNER_PASSWORD}
+  security:
+    oauth2:
+      client:
+        registration:
+          customers-service:
+            provider: revenda
+            client-id: ${OIDC_CLIENT_ID:customers-service}
+            client-secret: ${OIDC_CLIENT_SECRET}
+            authorization-grant-type: client_credentials
+        provider:
+          revenda:
+            token-uri: ${OIDC_CLIENT_TOKEN_URI:${OIDC_TOKEN_URI:http://localhost:8180/realms/revenda/protocol/openid-connect/token}}
 
 server:
   port: 8082
@@ -41,6 +53,12 @@ revenda:
   customers:
     require-verified-email: ${CUSTOMERS_REQUIRE_VERIFIED_EMAIL:false}
     zone: ${CUSTOMERS_ZONE:America/Sao_Paulo}
+    retention-cron: ${CUSTOMERS_RETENTION_CRON:0 0 3 * * *}
+    jobs-enabled: ${CUSTOMERS_JOBS_ENABLED:true}
+  neighbors:
+    sales-url: ${SALES_BASE_URL:http://localhost:8083}
+    connect-timeout: ${HTTP_CONNECT_TIMEOUT:2s}
+    read-timeout: ${HTTP_READ_TIMEOUT:2s}
   openapi:
     title: Cadastro de compradores
     description: >-

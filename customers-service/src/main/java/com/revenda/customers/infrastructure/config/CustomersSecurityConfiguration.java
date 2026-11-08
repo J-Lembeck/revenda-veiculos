@@ -24,6 +24,8 @@ class CustomersSecurityConfiguration {
                         Route.forRoles(HttpMethod.POST, "/customers", Role.CUSTOMER),
                         Route.forRoles(HttpMethod.GET, "/customers/me", Role.CUSTOMER),
                         Route.forRoles(HttpMethod.PATCH, "/customers/me", Role.CUSTOMER),
+                        Route.forRoles(HttpMethod.GET, "/customers/me/export", Role.CUSTOMER),
+                        Route.forRoles(HttpMethod.POST, "/customers/me/deletion", Role.CUSTOMER),
                         Route.forRoles(HttpMethod.GET, "/customers/{id}", Role.SELLER),
                         Route.forRoles(HttpMethod.POST, "/customers/{id}/cpf-reveal", Role.ADMIN),
                         Route.forScope(HttpMethod.GET, "/internal/customers/by-subject/{sub}/eligibility", READ_PAYER),

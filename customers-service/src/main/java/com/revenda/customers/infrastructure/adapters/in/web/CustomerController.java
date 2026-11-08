@@ -1,7 +1,9 @@
 package com.revenda.customers.infrastructure.adapters.in.web;
 
 import com.revenda.customers.domain.model.Customer;
+import com.revenda.customers.domain.ports.in.ExportOwnDataUseCase;
 import com.revenda.customers.domain.ports.in.RegisterCustomerUseCase;
+import com.revenda.customers.domain.ports.in.RequestDeletionUseCase;
 import com.revenda.customers.domain.ports.in.UpdateOwnCustomerUseCase;
 import com.revenda.customers.domain.ports.in.ViewOwnCustomerUseCase;
 import io.swagger.v3.oas.annotations.Operation;
@@ -14,6 +16,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import java.net.URI;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.CacheControl;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -36,6 +39,8 @@ class CustomerController {
     private final RegisterCustomerUseCase registerCustomer;
     private final ViewOwnCustomerUseCase viewOwnCustomer;
     private final UpdateOwnCustomerUseCase updateOwnCustomer;
+    private final ExportOwnDataUseCase exportOwnData;
+    private final RequestDeletionUseCase requestDeletion;
 
     @Operation(summary = "Cadastrar-se como comprador", description = "UC-06. Uma conta tem no máximo um cadastro e um "
             + "CPF, um cadastro ativo (RN-06). O e-mail vem da conta, pelo token — o corpo não tem e-mail. CPF, e-mail, "
@@ -94,6 +99,41 @@ class CustomerController {
             @Valid @RequestBody CustomerChangesRequest request) {
         return CustomerResponse.of(updateOwnCustomer.update(request.toCommand(token.getSubject(),
                 token.getClaimAsString(EMAIL_CLAIM), emailVerified(token))));
+    }
+
+    @Operation(summary = "Exportar os próprios dados", description = "UC-15, acesso e portabilidade (LGPD, art. 18). "
+            + "Tudo o que o cadastro guarda sobre a conta do token: nome, e-mail, telefone, nascimento e endereço em "
+            + "claro, o CPF mascarado (como no `GET /customers/me`), o pedido de exclusão, se houver, e o histórico da "
+            + "auditoria sobre o cadastro — quem leu ou mudou o dado (o titular, a equipe com o papel, o serviço de "
+            + "vendas com a compra), quando e por quê, sem a identidade de quem fez. As compras ficam no `GET "
+            + "/purchases` do serviço de vendas. Grava a auditoria `CUSTOMER_EXPORTED`. A resposta não vai para cache.")
+    @ApiResponse(responseCode = "200", description = "Os dados do titular.",
+            headers = @Header(name = "Cache-Control", description = "`no-store`"))
+    @ApiResponse(responseCode = "404", description = "`NOT_FOUND` — esta conta não tem cadastro ativo.")
+    @GetMapping("/me/export")
+    ResponseEntity<CustomerExportResponse> export(@Parameter(hidden = true) @AuthenticationPrincipal Jwt token) {
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore())
+                .body(CustomerExportResponse.of(exportOwnData.export(token.getSubject())));
+    }
+
+    @Operation(summary = "Pedir a exclusão do próprio cadastro", description = "UC-15, eliminação (LGPD, art. 18). "
+            + "Pergunta ao serviço de vendas até quando a lei pede guardar os dados. Sem venda concluída nem compra "
+            + "aberta no prazo (`RETENTION_AFTER_SALE`, 5 anos depois da venda), o cadastro é anonimizado na hora: o "
+            + "nome, o CPF, o e-mail, o telefone, o nascimento, o endereço e o vínculo com a conta são apagados; o id "
+            + "fica, porque as compras apontam para ele. Com venda no prazo, o pedido fica registrado e o job de "
+            + "retenção anonimiza no fim dele — a resposta é `409`, com a data. Grava a auditoria "
+            + "`CUSTOMER_DELETION_REQUESTED` e, ao anonimizar, `CUSTOMER_ANONYMIZED`. Depois de anonimizado, a conta "
+            + "pode se cadastrar de novo. Não cria nada: sem `Idempotency-Key`.")
+    @ApiResponse(responseCode = "200", description = "Anonimizado agora.")
+    @ApiResponse(responseCode = "404", description = "`NOT_FOUND` — esta conta não tem cadastro ativo (ou já foi "
+            + "anonimizado).")
+    @ApiResponse(responseCode = "409", description = "`CUSTOMER_HAS_RETAINED_DATA` — há venda no prazo de guarda: o "
+            + "pedido ficou registrado e a `message` diz a data da anonimização. Repetir o pedido não muda nada.")
+    @ApiResponse(responseCode = "503", description = "`DEPENDENCY_UNAVAILABLE` — o serviço de vendas não respondeu; nada "
+            + "mudou.")
+    @PostMapping("/me/deletion")
+    DeletionResponse requestDeletion(@Parameter(hidden = true) @AuthenticationPrincipal Jwt token) {
+        return DeletionResponse.anonymizedAt(requestDeletion.request(token.getSubject()));
     }
 
     private static boolean emailVerified(Jwt token) {

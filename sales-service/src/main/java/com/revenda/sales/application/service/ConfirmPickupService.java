@@ -4,7 +4,7 @@ import com.revenda.common.audit.AuditEntry;
 import com.revenda.common.audit.AuditRecorder;
 import com.revenda.common.error.BusinessException;
 import com.revenda.common.error.CommonError;
-import com.revenda.sales.domain.model.DependencyUnavailableException;
+import com.revenda.common.error.DependencyUnavailableException;
 import com.revenda.sales.domain.model.Purchase;
 import com.revenda.sales.domain.model.PurchaseChange;
 import com.revenda.sales.domain.model.PurchaseDetails;

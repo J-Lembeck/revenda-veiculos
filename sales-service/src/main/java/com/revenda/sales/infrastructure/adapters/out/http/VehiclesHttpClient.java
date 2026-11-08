@@ -1,7 +1,8 @@
 package com.revenda.sales.infrastructure.adapters.out.http;
 
+import com.revenda.common.http.ServiceCalls;
 import com.revenda.common.money.Money;
-import com.revenda.sales.domain.model.DependencyUnavailableException;
+import com.revenda.common.error.DependencyUnavailableException;
 import com.revenda.sales.domain.model.TransferVehicle;
 import com.revenda.sales.domain.model.VehicleReservation;
 import com.revenda.sales.domain.ports.out.LoadTransferVehiclePort;
@@ -32,7 +33,7 @@ class VehiclesHttpClient implements ReserveVehiclePort, LoadTransferVehiclePort 
 
     @Override
     public VehicleReservation reserve(UUID vehicleId, UUID purchaseId) {
-        NeighborCalls.requireNoTransaction(NEIGHBOR);
+        ServiceCalls.requireNoTransaction(NEIGHBOR);
         try {
             ReservationResponse reserved = rest.post()
                     .uri("/internal/vehicles/{id}/reservations", vehicleId)
@@ -45,14 +46,14 @@ class VehiclesHttpClient implements ReserveVehiclePort, LoadTransferVehiclePort 
             return new VehicleReservation.Unavailable();
         } catch (RuntimeException failure) {
             log.warn("Reserva do veículo {} para a compra {} sem resposta: {}", vehicleId, purchaseId,
-                    NeighborCalls.describe(failure));
+                    ServiceCalls.describe(failure));
             return new VehicleReservation.Unknown();
         }
     }
 
     @Override
     public TransferVehicle load(UUID vehicleId) {
-        NeighborCalls.requireNoTransaction(NEIGHBOR);
+        ServiceCalls.requireNoTransaction(NEIGHBOR);
         try {
             VehicleResponse vehicle = rest.get()
                     .uri("/internal/vehicles/{id}", vehicleId)
@@ -62,7 +63,7 @@ class VehiclesHttpClient implements ReserveVehiclePort, LoadTransferVehiclePort 
                     vehicle.manufactureYear(), vehicle.modelYear(), vehicle.color(), vehicle.mileageKm(),
                     vehicle.plate(), vehicle.vin(), vehicle.renavam());
         } catch (RuntimeException failure) {
-            throw new DependencyUnavailableException(NEIGHBOR, NeighborCalls.describe(failure));
+            throw new DependencyUnavailableException(NEIGHBOR, ServiceCalls.describe(failure));
         }
     }
 

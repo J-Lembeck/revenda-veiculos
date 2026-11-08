@@ -1,0 +1,11 @@
+spring:
+  security:
+    oauth2:
+      client:
+        registration:
+          customers-service:
+            client-secret: ${random.uuid}
+
+revenda:
+  customers:
+    jobs-enabled: false
