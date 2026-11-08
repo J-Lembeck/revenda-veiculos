@@ -42,6 +42,9 @@ public class OpenApiConventions implements OpenApiCustomizer {
     static final String BEARER = "bearer";
     static final String API_ERROR = "ApiError";
 
+    static final String EXAMPLE_ID = "3f2b8c4e-9a1d-4c7b-8e5f-1a2b3c4d5e6f";
+    static final String EXAMPLE_INSTANT = "2026-11-08T13:05:21Z";
+
     private static final String JSON = "application/json";
     private static final PathPatternParser PATTERNS = PathPatternParser.defaultInstance;
 
@@ -64,6 +67,7 @@ public class OpenApiConventions implements OpenApiCustomizer {
         Components components = openApi.getComponents() == null ? new Components() : openApi.getComponents();
         openApi.components(components);
         ModelConverters.getInstance().readAll(ApiError.class).forEach(components::addSchemas);
+        exampleIdsAndInstants(components);
         components.getSchemas().get(API_ERROR).description("Todo erro: `code` estável (o front decide por ele), "
                 + "`message` em português, o `requestId` do log e, na validação, cada campo em `fields`.");
         components.addSecuritySchemes(BEARER, new SecurityScheme().type(SecurityScheme.Type.HTTP).scheme("bearer")
@@ -79,6 +83,25 @@ public class OpenApiConventions implements OpenApiCustomizer {
         if (openApi.getPaths() != null) {
             openApi.getPaths().forEach((path, item) -> item.readOperationsMap().forEach(
                     (method, operation) -> document(path, HttpMethod.valueOf(method.name()), operation)));
+        }
+    }
+
+    /** Id e instante sem exemplo no DTO ganham um sintético, para todo campo do contrato ter exemplo. */
+    private static void exampleIdsAndInstants(Components components) {
+        for (Schema<?> schema : components.getSchemas().values()) {
+            if (schema.getProperties() == null) {
+                continue;
+            }
+            for (Schema<?> property : schema.getProperties().values()) {
+                if (property.getExample() != null) {
+                    continue;
+                }
+                if ("uuid".equals(property.getFormat())) {
+                    property.setExample(EXAMPLE_ID);
+                } else if ("date-time".equals(property.getFormat())) {
+                    property.setExample(EXAMPLE_INSTANT);
+                }
+            }
         }
     }
 

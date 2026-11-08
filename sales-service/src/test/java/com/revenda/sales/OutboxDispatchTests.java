@@ -11,7 +11,7 @@ import tools.jackson.databind.JsonNode;
 
 /**
  * O despachante do outbox: os comandos do estoque na fila FIFO, no envelope que o consumidor lê, e os do gateway pela
- * API dele; o que falha volta para a fila com espera e não segura os outros grupos (06 §4, última linha).
+ * API dele; o que falha volta para a fila com espera e não segura os outros grupos.
  */
 class OutboxDispatchTests extends SalesApiTest {
 

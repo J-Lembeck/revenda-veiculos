@@ -22,7 +22,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.oauth2.client.OAuth2AuthorizedClientService;
 import tools.jackson.databind.JsonNode;
 
-/** UC-08: o pedido de compra, do caminho feliz a cada falha do caminho síncrono (06 §4, linhas 1 a 3). */
+/** UC-08: o pedido de compra, do caminho feliz a cada falha do caminho síncrono. */
 @ExtendWith(OutputCaptureExtension.class)
 class PurchaseCreationTests extends SalesApiTest {
 

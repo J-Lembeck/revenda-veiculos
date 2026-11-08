@@ -1,0 +1,10 @@
+**/target
+**/.env
+**/*.iml
+.git
+.github
+.idea
+.vscode
+infra
+postman
+README.md

@@ -67,6 +67,11 @@ public final class TestTokens {
         return new Builder();
     }
 
+    /** As chaves públicas dos tokens de teste no formato JWKS, como o provedor publica em {@code …/certs}. */
+    public static String publicJwkSet() {
+        return new JWKSet(KEY.toPublicJWK()).toString();
+    }
+
     public static JwtDecoder decoder(ResourceServerProperties.Oidc oidc) {
         try {
             NimbusJwtDecoder decoder = NimbusJwtDecoder.withPublicKey(KEY.toRSAPublicKey()).build();

@@ -887,7 +887,8 @@
 									"pm.test('responde 200 UP', () => {",
 									"    pm.response.to.have.status(200);",
 									"    pm.expect(pm.response.json().status).to.eql('UP');",
-									"});"
+									"});",
+									"pm.test('sem detalhes dos componentes', () => pm.expect(pm.response.text()).to.not.include('components'));"
 								]
 							}
 						}
@@ -895,8 +896,8 @@
 					"request": {
 						"method": "GET",
 						"header": [],
-						"url": "{{vehiclesUrl}}/actuator/health",
-						"description": "`GET /actuator/health` público, sem token. Deve aparecer: `200` com `\"status\": \"UP\"` e o cabeçalho `X-Request-Id`. Se falhar, o serviço não está de pé (`./mvnw -pl vehicles-service spring-boot:run`)."
+						"url": "{{vehiclesManagementUrl}}/actuator/health",
+						"description": "`GET /actuator/health` na porta de gestão do serviço (a do serviço não tem Actuator), sem token. Deve aparecer: `200` com `\"status\": \"UP\"` e nenhum detalhe dos componentes; a prontidão (`/actuator/health/readiness`) espera o banco. Se falhar, o serviço não está de pé (`docker compose --profile apps ps`)."
 					},
 					"response": [],
 					"id": "afa350e4-c30b-5e41-ba2d-de96845286b7"
@@ -912,7 +913,8 @@
 									"pm.test('responde 200 UP', () => {",
 									"    pm.response.to.have.status(200);",
 									"    pm.expect(pm.response.json().status).to.eql('UP');",
-									"});"
+									"});",
+									"pm.test('sem detalhes dos componentes', () => pm.expect(pm.response.text()).to.not.include('components'));"
 								]
 							}
 						}
@@ -920,8 +922,8 @@
 					"request": {
 						"method": "GET",
 						"header": [],
-						"url": "{{customersUrl}}/actuator/health",
-						"description": "`GET /actuator/health` público, sem token. Deve aparecer: `200` com `\"status\": \"UP\"` e o cabeçalho `X-Request-Id`. Se falhar, o serviço não está de pé (`./mvnw -pl customers-service spring-boot:run`)."
+						"url": "{{customersManagementUrl}}/actuator/health",
+						"description": "`GET /actuator/health` na porta de gestão do serviço (a do serviço não tem Actuator), sem token. Deve aparecer: `200` com `\"status\": \"UP\"` e nenhum detalhe dos componentes; a prontidão (`/actuator/health/readiness`) espera o banco. Se falhar, o serviço não está de pé (`docker compose --profile apps ps`)."
 					},
 					"response": [],
 					"id": "dfbb39b0-32a3-540e-ab38-44a31a35e35b"
@@ -937,7 +939,8 @@
 									"pm.test('responde 200 UP', () => {",
 									"    pm.response.to.have.status(200);",
 									"    pm.expect(pm.response.json().status).to.eql('UP');",
-									"});"
+									"});",
+									"pm.test('sem detalhes dos componentes', () => pm.expect(pm.response.text()).to.not.include('components'));"
 								]
 							}
 						}
@@ -945,8 +948,8 @@
 					"request": {
 						"method": "GET",
 						"header": [],
-						"url": "{{salesUrl}}/actuator/health",
-						"description": "`GET /actuator/health` público, sem token. Deve aparecer: `200` com `\"status\": \"UP\"` e o cabeçalho `X-Request-Id`. Se falhar, o serviço não está de pé (`./mvnw -pl sales-service spring-boot:run`)."
+						"url": "{{salesManagementUrl}}/actuator/health",
+						"description": "`GET /actuator/health` na porta de gestão do serviço (a do serviço não tem Actuator), sem token. Deve aparecer: `200` com `\"status\": \"UP\"` e nenhum detalhe dos componentes; a prontidão (`/actuator/health/readiness`) espera o banco. Se falhar, o serviço não está de pé (`docker compose --profile apps ps`)."
 					},
 					"response": [],
 					"id": "df684d1e-d86e-5db3-bbcb-2a3b6775056d"
@@ -962,6 +965,33 @@
 									"pm.test('responde 200 UP', () => {",
 									"    pm.response.to.have.status(200);",
 									"    pm.expect(pm.response.json().status).to.eql('UP');",
+									"});",
+									"pm.test('sem detalhes dos componentes', () => pm.expect(pm.response.text()).to.not.include('components'));"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": "{{gatewayManagementUrl}}/actuator/health",
+						"description": "`GET /actuator/health` na porta de gestão do serviço (a do serviço não tem Actuator), sem token. Deve aparecer: `200` com `\"status\": \"UP\"` e nenhum detalhe dos componentes; a prontidão (`/actuator/health/readiness`) espera o banco. Se falhar, o serviço não está de pé (`docker compose --profile apps ps`)."
+					},
+					"response": [],
+					"id": "450285ea-3dd8-5683-bdee-e97c6e677ac4"
+				},
+				{
+					"name": "Métricas do sales (Prometheus)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('responde 200 com as métricas de negócio', () => {",
+									"    pm.response.to.have.status(200);",
+									"    pm.expect(pm.response.text()).to.include('sales_purchases{');",
+									"    pm.expect(pm.response.text()).to.include('outbox_messages_failed{');",
 									"});"
 								]
 							}
@@ -970,11 +1000,49 @@
 					"request": {
 						"method": "GET",
 						"header": [],
-						"url": "{{gatewayUrl}}/actuator/health",
-						"description": "`GET /actuator/health` público, sem token. Deve aparecer: `200` com `\"status\": \"UP\"` e o cabeçalho `X-Request-Id`. Se falhar, o serviço não está de pé (`./mvnw -pl payment-gateway-mock spring-boot:run`)."
+						"url": "{{salesManagementUrl}}/actuator/prometheus",
+						"description": "As métricas de negócio no formato do Prometheus, na porta de gestão: compras por status (`sales_purchases`), cada passo da compra (`sales_purchase_transitions_total`, com status, pagamento e motivo), webhooks recusados e o outbox (mensagens `FAILED` e a idade da mais antiga). Deve aparecer: `200` e nenhum id, `sub` nem dado de comprador — só contagens. Na nuvem, um coletor na rede privada lê e manda ao CloudWatch.",
+						"auth": {
+							"type": "noauth"
+						}
 					},
 					"response": [],
-					"id": "450285ea-3dd8-5683-bdee-e97c6e677ac4"
+					"id": "685e6d2e-6db6-5cd1-90e1-08215cdaff6c"
+				},
+				{
+					"name": "Actuator fora da porta do serviço → 404",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"responde 404 NOT_FOUND\", () => {",
+									"    pm.response.to.have.status(404);",
+									"    pm.expect(pm.response.json().code).to.eql('NOT_FOUND');",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": "{{salesUrl}}/actuator/health",
+						"description": "A porta do serviço não tem `/actuator`: com um token aceito, `404 NOT_FOUND`. O Actuator só existe na porta de gestão, que na nuvem fica fora do balanceador e do API Gateway.",
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{tokenCustomersService}}",
+									"type": "string"
+								}
+							]
+						}
+					},
+					"response": [],
+					"id": "8277b7cf-7120-55d3-8fe4-c28f15bbbcb8"
 				},
 				{
 					"name": "Sem token → 401",
@@ -1300,8 +1368,11 @@
 								"value": "{{sentRequestId}}"
 							}
 						],
-						"url": "{{customersUrl}}/actuator/health",
-						"description": "Manda um `X-Request-Id` no padrão aceito. Deve aparecer: o mesmo valor no cabeçalho da resposta (é ele que vai para o log e para a auditoria)."
+						"url": "{{vehiclesUrl}}/vehicles?page=0&size=1",
+						"description": "Manda um `X-Request-Id` no padrão aceito. Deve aparecer: o mesmo valor no cabeçalho da resposta (é ele que vai para o log e para a auditoria).",
+						"auth": {
+							"type": "noauth"
+						}
 					},
 					"response": [],
 					"id": "10647d4d-50d6-505e-868e-be316c855e37"
@@ -1331,8 +1402,11 @@
 								"value": "curto"
 							}
 						],
-						"url": "{{customersUrl}}/actuator/health",
-						"description": "Manda um `X-Request-Id` curto demais. Deve aparecer: um UUID novo no cabeçalho — nada que o cliente manda vai cru para o log."
+						"url": "{{vehiclesUrl}}/vehicles?page=0&size=1",
+						"description": "Manda um `X-Request-Id` curto demais. Deve aparecer: um UUID novo no cabeçalho — nada que o cliente manda vai cru para o log.",
+						"auth": {
+							"type": "noauth"
+						}
 					},
 					"response": [],
 					"id": "4ff0f29f-0091-5b70-9d89-853134778730"
@@ -9783,7 +9857,7 @@
 						"method": "GET",
 						"header": [],
 						"url": "{{salesUrl}}/internal/customers/{{customerId}}/retention",
-						"description": "*Scope* `sales.read-retention` (`customers-service`). Até quando a lei pede guardar os dados (07 §5.4); a Ana tem venda concluída. Deve aparecer: `200 { retainUntil }` com uma data no futuro.",
+						"description": "*Scope* `sales.read-retention` (`customers-service`). Até quando a lei pede guardar os dados — a Ana tem venda concluída. Deve aparecer: `200 { retainUntil }` com uma data no futuro.",
 						"auth": {
 							"type": "bearer",
 							"bearer": [
@@ -10010,7 +10084,8 @@
 				"exec": [
 					"const raw = pm.request.url.toString();",
 					"const isFrom = (variable) => raw.indexOf('{{' + variable + '}}') === 0 || raw.indexOf(pm.variables.get(variable)) === 0;",
-					"if (!isFrom('keycloakUrl')) {",
+					"const management = ['vehiclesManagementUrl', 'customersManagementUrl', 'salesManagementUrl', 'gatewayManagementUrl'].some(isFrom);",
+					"if (!isFrom('keycloakUrl') && !management) {",
 					"    const requestId = pm.response.headers.get('X-Request-Id');",
 					"    pm.test('[contrato] X-Request-Id na resposta', () => pm.expect(requestId, 'X-Request-Id').to.be.a('string').and.not.empty);",
 					"    const type = pm.response.headers.get('Content-Type') || '';",

@@ -11,14 +11,19 @@ import com.revenda.common.observability.RequestIdFilter;
 import com.revenda.common.privacy.MaskingAppender;
 import java.util.ArrayList;
 import java.util.List;
+import javax.sql.DataSource;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.health.actuate.endpoint.HealthEndpointGroups;
 import org.springframework.boot.resttestclient.TestRestTemplate;
 import org.springframework.boot.resttestclient.autoconfigure.AutoConfigureTestRestTemplate;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.web.server.LocalManagementPort;
+import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -30,19 +35,84 @@ public abstract class ServiceFoundationContract {
     @Autowired
     private TestRestTemplate rest;
 
-    @Test
-    void healthRespondsUp() {
-        ResponseEntity<String> response = anonymous().exchange(HttpMethod.GET, "/actuator/health", null, String.class);
+    @LocalServerPort
+    private int servicePort;
 
+    @LocalManagementPort
+    private int managementPort;
+
+    @Autowired
+    private HealthEndpointGroups healthGroups;
+
+    @Autowired
+    private ObjectProvider<DataSource> dataSource;
+
+    @Test
+    void healthRespondsUpOnTheManagementPort() {
+        ResponseEntity<String> response = management("/actuator/health");
+
+        assertThat(managementPort).isNotEqualTo(servicePort);
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(response.getBody()).contains("\"status\":\"UP\"");
     }
 
     @Test
     void healthHidesComponentDetails() {
-        ResponseEntity<String> response = anonymous().exchange(HttpMethod.GET, "/actuator/health", null, String.class);
+        ResponseEntity<String> response = management("/actuator/health");
 
         assertThat(response.getBody()).doesNotContain("components", "details");
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"/actuator/health/liveness", "/actuator/health/readiness"})
+    void probesRespondUpOnTheManagementPort(String path) {
+        ResponseEntity<String> response = management(path);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(response.getBody()).contains("\"status\":\"UP\"");
+    }
+
+    @Test
+    void readinessWaitsForTheDatabaseAndLivenessDoesNot() {
+        boolean hasDatabase = dataSource.getIfAvailable() != null;
+
+        assertThat(healthGroups.get("readiness").isMember("db")).isEqualTo(hasDatabase);
+        assertThat(healthGroups.get("liveness").isMember("db")).isFalse();
+    }
+
+    @Test
+    void prometheusIsOpenOnTheManagementPort() {
+        ResponseEntity<String> response = management("/actuator/prometheus");
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(response.getBody()).contains("jvm_memory_used_bytes");
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"/actuator/health", "/actuator/prometheus", "/actuator/env"})
+    void theServicePortHasNoActuator(String path) {
+        ResponseEntity<String> response = anonymous().exchange(HttpMethod.GET, path, null, String.class);
+
+        assertThat(response.getStatusCode()).isIn(HttpStatus.NOT_FOUND, HttpStatus.UNAUTHORIZED);
+        assertThat(api().exchange(HttpMethod.GET, path, null, String.class).getStatusCode())
+                .isEqualTo(HttpStatus.NOT_FOUND);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"/actuator/env", "/actuator/beans", "/actuator/configprops", "/actuator/heapdump",
+            "/actuator/metrics"})
+    void otherActuatorEndpointsAreNotExposed(String path) {
+        ResponseEntity<String> response = management(path);
+        ResponseEntity<String> withAccess = api()
+                .exchange(HttpMethod.GET, "http://localhost:" + managementPort + path, null, String.class);
+
+        assertThat(response.getStatusCode()).isIn(HttpStatus.NOT_FOUND, HttpStatus.UNAUTHORIZED);
+        assertThat(withAccess.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+    }
+
+    /** O texto que a porta de gestão responde, sem token. */
+    protected final ResponseEntity<String> management(String path) {
+        return anonymous().exchange(HttpMethod.GET, "http://localhost:" + managementPort + path, null, String.class);
     }
 
     /** Quem pode chamar qualquer rota autenticada do serviço; anônimo onde não há token. */
@@ -73,13 +143,5 @@ public abstract class ServiceFoundationContract {
         root.iteratorForAppenders().forEachRemaining(outputs::add);
 
         assertThat(outputs).singleElement().isInstanceOf(MaskingAppender.class);
-    }
-
-    @ParameterizedTest
-    @ValueSource(strings = {"/actuator/env", "/actuator/beans", "/actuator/configprops", "/actuator/heapdump"})
-    void otherActuatorEndpointsAreNotExposed(String path) {
-        ResponseEntity<String> response = api().exchange(HttpMethod.GET, path, null, String.class);
-
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
     }
 }

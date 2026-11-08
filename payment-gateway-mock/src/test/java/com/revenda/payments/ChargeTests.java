@@ -217,22 +217,21 @@ class ChargeTests extends PaymentGatewayApiTest {
     }
 
     @Test
-    void everyRouteButTheHealthNeedsTheApiKey() {
+    void everyRouteNeedsTheApiKey() {
         Map<String, Object> body = chargeBody();
 
         ResponseEntity<JsonNode> withoutKey = anonymous().post(CHARGES, body);
         ResponseEntity<JsonNode> wrongKey = anonymous().withHeader("X-Api-Key", "chave-errada").post(CHARGES, body);
         ResponseEntity<JsonNode> search = anonymous().get(CHARGES + "?referenceId=" + body.get("referenceId"));
-        ResponseEntity<String> health = anonymous().exchange(HttpMethod.GET, "/actuator/health", null, String.class);
+        ResponseEntity<JsonNode> health = anonymous().get("/actuator/health");
 
-        for (ResponseEntity<JsonNode> refused : List.of(withoutKey, wrongKey, search)) {
+        for (ResponseEntity<JsonNode> refused : List.of(withoutKey, wrongKey, search, health)) {
             assertThat(refused.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
             assertThat(refused.getBody().get("code").asString()).isEqualTo("UNAUTHENTICATED");
             assertThat(refused.getBody().get("message").asString()).contains("X-Api-Key");
             assertThat(refused.getBody().get("requestId").asString())
                     .isEqualTo(refused.getHeaders().getFirst("X-Request-Id"));
         }
-        assertThat(health.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(api().get(CHARGES + "?referenceId=" + body.get("referenceId")).getStatusCode())
                 .isEqualTo(HttpStatus.NOT_FOUND);
     }

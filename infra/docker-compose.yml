@@ -1,5 +1,32 @@
 name: revenda-veiculos
 
+x-app: &app
+  profiles: [apps]
+  restart: unless-stopped
+  depends_on:
+    postgres:
+      condition: service_healthy
+    localstack:
+      condition: service_healthy
+    keycloak:
+      condition: service_healthy
+  healthcheck:
+    test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:$${MANAGEMENT_PORT}/actuator/health/readiness"]
+    interval: 5s
+    timeout: 3s
+    start_period: 30s
+    retries: 30
+
+x-app-env: &app-env
+  MANAGEMENT_ADDRESS: 0.0.0.0
+  OIDC_ISSUER_URI: http://localhost:8180/realms/revenda
+  OIDC_JWK_SET_URI: http://keycloak:8180/realms/revenda/protocol/openid-connect/certs
+  AWS_REGION: sa-east-1
+  AWS_ENDPOINT_URL: http://localstack:4566
+  AWS_ACCESS_KEY_ID: test
+  AWS_SECRET_ACCESS_KEY: test
+  VEHICLE_COMMANDS_QUEUE_URL: http://localstack:4566/000000000000/vehicle-commands.fifo
+
 services:
   postgres:
     image: postgres:16.15-alpine
@@ -53,6 +80,8 @@ services:
       KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN_USER:?copie .env.example para .env}
       KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:?}
       KC_HTTP_PORT: 8180
+      KC_HOSTNAME: http://localhost:8180
+      KC_HOSTNAME_BACKCHANNEL_DYNAMIC: "true"
       KC_HEALTH_ENABLED: "true"
       SALES_SERVICE_CLIENT_SECRET: ${SALES_SERVICE_CLIENT_SECRET:?}
       CUSTOMERS_SERVICE_CLIENT_SECRET: ${CUSTOMERS_SERVICE_CLIENT_SECRET:?}
@@ -73,6 +102,84 @@ services:
       interval: 5s
       timeout: 3s
       retries: 40
+
+  vehicles:
+    <<: *app
+    build:
+      context: ..
+      args:
+        SERVICE: vehicles-service
+    image: revenda-veiculos/vehicles-service:local
+    environment:
+      <<: *app-env
+      MANAGEMENT_PORT: 9081
+      DB_URL: jdbc:postgresql://postgres:5432/vehicles
+      DB_APP_PASSWORD: ${VEHICLES_DB_APP_PASSWORD:?}
+      DB_OWNER_PASSWORD: ${VEHICLES_DB_OWNER_PASSWORD:?}
+    ports:
+      - "127.0.0.1:8081:8081"
+      - "127.0.0.1:9081:9081"
+
+  customers:
+    <<: *app
+    build:
+      context: ..
+      args:
+        SERVICE: customers-service
+    image: revenda-veiculos/customers-service:local
+    environment:
+      <<: *app-env
+      MANAGEMENT_PORT: 9082
+      DB_URL: jdbc:postgresql://postgres:5432/customers
+      DB_APP_PASSWORD: ${CUSTOMERS_DB_APP_PASSWORD:?}
+      DB_OWNER_PASSWORD: ${CUSTOMERS_DB_OWNER_PASSWORD:?}
+    ports:
+      - "127.0.0.1:8082:8082"
+      - "127.0.0.1:9082:9082"
+
+  sales:
+    <<: *app
+    build:
+      context: ..
+      args:
+        SERVICE: sales-service
+    image: revenda-veiculos/sales-service:local
+    environment:
+      <<: *app-env
+      MANAGEMENT_PORT: 9083
+      DB_URL: jdbc:postgresql://postgres:5432/sales
+      DB_APP_PASSWORD: ${SALES_DB_APP_PASSWORD:?}
+      DB_OWNER_PASSWORD: ${SALES_DB_OWNER_PASSWORD:?}
+      OIDC_CLIENT_SECRET: ${SALES_SERVICE_CLIENT_SECRET:?}
+      OIDC_CLIENT_TOKEN_URI: http://keycloak:8180/realms/revenda/protocol/openid-connect/token
+      VEHICLES_BASE_URL: http://vehicles:8081
+      CUSTOMERS_BASE_URL: http://customers:8082
+      PAYMENT_GATEWAY_BASE_URL: http://payment-gateway:8084
+      PAYMENT_GATEWAY_API_KEY: ${PAYMENT_GATEWAY_API_KEY:?}
+      PAYMENT_WEBHOOK_SECRET: ${PAYMENT_WEBHOOK_SECRET:?}
+      PAYMENT_WINDOW: ${PAYMENT_WINDOW:-PT30M}
+      DOCUMENTS_LINK_ENDPOINT: http://localhost:4566
+    ports:
+      - "127.0.0.1:8083:8083"
+      - "127.0.0.1:9083:9083"
+
+  payment-gateway:
+    <<: *app
+    build:
+      context: ..
+      args:
+        SERVICE: payment-gateway-mock
+    image: revenda-veiculos/payment-gateway-mock:local
+    depends_on: {}
+    environment:
+      MANAGEMENT_ADDRESS: 0.0.0.0
+      MANAGEMENT_PORT: 9084
+      GATEWAY_API_KEY: ${PAYMENT_GATEWAY_API_KEY:?}
+      PAYMENT_WEBHOOK_SECRET: ${PAYMENT_WEBHOOK_SECRET:?}
+      WEBHOOK_URL: http://sales:8083/webhooks/payments
+    ports:
+      - "127.0.0.1:8084:8084"
+      - "127.0.0.1:9084:9084"
 
 volumes:
   postgres-data:

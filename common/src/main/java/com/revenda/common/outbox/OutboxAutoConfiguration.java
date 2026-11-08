@@ -1,5 +1,6 @@
 package com.revenda.common.outbox;
 
+import io.micrometer.core.instrument.binder.MeterBinder;
 import java.time.Clock;
 import java.util.List;
 import javax.sql.DataSource;
@@ -9,6 +10,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -36,5 +38,16 @@ public class OutboxAutoConfiguration {
             PlatformTransactionManager transactionManager, OutboxProperties properties, Clock clock) {
         return new OutboxDispatcher(new OutboxQueue(jdbcClient), senders, new TransactionTemplate(transactionManager),
                 properties.maxAttempts(), clock);
+    }
+
+    @Configuration(proxyBeanMethods = false)
+    @ConditionalOnClass(MeterBinder.class)
+    static class OutboxMetricsConfiguration {
+
+        @Bean
+        OutboxMetrics outboxMetrics(JdbcClient jdbcClient, List<OutboxSender> senders, Clock clock) {
+            return new OutboxMetrics(jdbcClient,
+                    senders.stream().map(sender -> sender.destination().name()).distinct().toList(), clock);
+        }
     }
 }

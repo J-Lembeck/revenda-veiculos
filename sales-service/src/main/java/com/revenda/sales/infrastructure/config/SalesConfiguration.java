@@ -42,8 +42,8 @@ class SalesConfiguration {
     @ConditionalOnMissingBean
     S3Presigner s3Presigner(DocumentsProperties documents) {
         var builder = S3Presigner.builder();
-        if (documents.endpoint() != null) {
-            builder.endpointOverride(documents.endpoint())
+        if (documents.linkEndpoint() != null) {
+            builder.endpointOverride(documents.linkEndpoint())
                     .serviceConfiguration(S3Configuration.builder().pathStyleAccessEnabled(true).build());
         }
         return builder.build();

@@ -12,7 +12,7 @@ class AccessTokenValidatorTests {
 
     private final AccessTokenValidator validator = new AccessTokenValidator(new ResourceServerProperties.Oidc(
             "https://idp.example.test/realms/revenda", "realm_access.roles", "",
-            List.of("revenda-web"), List.of("sales-service")));
+            List.of("revenda-web"), List.of("sales-service"), null));
 
     @Test
     void acceptsAccessTokenOfAWebClient() {
