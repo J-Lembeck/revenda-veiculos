@@ -12,10 +12,20 @@ queue_arn() {
         --query Attributes.QueueArn --output text
 }
 
+key_material() {
+    printf '%b' "$(printf '%s' "$1" | sha256sum | cut -c1-64 | sed 's/../\\x&/g')" | base64 -w0
+}
+
 ensure_key() {
-    local alias="alias/$1" description="$2" key_id
+    local alias="alias/$1" description="$2" fixed_id="${3:-}" seed="${4:-}" key_id
+    local tags=()
+    if [[ -n "$fixed_id" ]]; then
+        tags=(--tags "TagKey=_custom_id_,TagValue=$fixed_id"
+            "TagKey=_custom_key_material_,TagValue=$(key_material "$seed")")
+    fi
     if ! awslocal kms describe-key --key-id "$alias" >/dev/null 2>&1; then
-        key_id=$(awslocal kms create-key --description "$description" --query KeyMetadata.KeyId --output text)
+        key_id=$(awslocal kms create-key --description "$description" "${tags[@]}" \
+            --query KeyMetadata.KeyId --output text)
         awslocal kms create-alias --alias-name "$alias" --target-key-id "$key_id"
         awslocal kms enable-key-rotation --key-id "$key_id"
     fi
@@ -34,7 +44,8 @@ dlq_url=$(create_fifo_queue vehicle-commands-dlq.fifo '{"FifoQueue":"true","Mess
 redrive=$(printf '{\\"deadLetterTargetArn\\":\\"%s\\",\\"maxReceiveCount\\":\\"5\\"}' "$(queue_arn "$dlq_url")")
 create_fifo_queue vehicle-commands.fifo "{\"FifoQueue\":\"true\",\"RedrivePolicy\":\"$redrive\"}" >/dev/null
 
-ensure_key customers-data "Dados pessoais dos clientes (customers-service)"
+ensure_key customers-data "Dados pessoais dos clientes (customers-service)" \
+    6c0c4a1e-0000-4000-8000-000000000001 "$CUSTOMERS_KMS_KEY_SEED"
 ensure_key documents "Documentos de transferência (sales-service)"
 
 bucket=transfer-documents

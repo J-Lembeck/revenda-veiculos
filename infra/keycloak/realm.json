@@ -332,6 +332,7 @@
   ],
   "users": [
     {
+      "id": "0a7a0000-0000-4000-8000-000000000001",
       "username": "ana.cliente@example.test",
       "email": "ana.cliente@example.test",
       "emailVerified": true,
@@ -342,6 +343,7 @@
       "realmRoles": ["default-roles-revenda"]
     },
     {
+      "id": "0a7a0000-0000-4000-8000-000000000002",
       "username": "duda.cliente@example.test",
       "email": "duda.cliente@example.test",
       "emailVerified": true,
@@ -352,6 +354,7 @@
       "realmRoles": ["default-roles-revenda"]
     },
     {
+      "id": "0a7a0000-0000-4000-8000-000000000003",
       "username": "bruno.sem-cadastro@example.test",
       "email": "bruno.sem-cadastro@example.test",
       "emailVerified": true,
@@ -362,6 +365,7 @@
       "realmRoles": ["default-roles-revenda"]
     },
     {
+      "id": "0a7a0000-0000-4000-8000-000000000004",
       "username": "caio.menor@example.test",
       "email": "caio.menor@example.test",
       "emailVerified": true,
@@ -372,6 +376,7 @@
       "realmRoles": ["default-roles-revenda"]
     },
     {
+      "id": "0a7a0000-0000-4000-8000-000000000005",
       "username": "vera.vendedora@example.test",
       "email": "vera.vendedora@example.test",
       "emailVerified": true,
@@ -382,6 +387,7 @@
       "realmRoles": ["SELLER"]
     },
     {
+      "id": "0a7a0000-0000-4000-8000-000000000006",
       "username": "otto.admin@example.test",
       "email": "otto.admin@example.test",
       "emailVerified": true,
@@ -392,12 +398,14 @@
       "realmRoles": ["ADMIN"]
     },
     {
+      "id": "0a7a0000-0000-4000-8000-000000000101",
       "username": "service-account-sales-service",
       "enabled": true,
       "serviceAccountClientId": "sales-service",
       "realmRoles": []
     },
     {
+      "id": "0a7a0000-0000-4000-8000-000000000102",
       "username": "service-account-customers-service",
       "enabled": true,
       "serviceAccountClientId": "customers-service",

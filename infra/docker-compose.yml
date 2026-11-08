@@ -30,6 +30,7 @@ services:
       AWS_DEFAULT_REGION: sa-east-1
       PAYMENT_GATEWAY_API_KEY: ${PAYMENT_GATEWAY_API_KEY:?copie .env.example para .env}
       PAYMENT_WEBHOOK_SECRET: ${PAYMENT_WEBHOOK_SECRET:?}
+      CUSTOMERS_KMS_KEY_SEED: ${CUSTOMERS_KMS_KEY_SEED:?copie a linha nova do .env.example para o .env}
     ports:
       - "127.0.0.1:4566:4566"
     volumes:
