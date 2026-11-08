@@ -57,6 +57,20 @@ Todas as portas escutam só em `127.0.0.1`.
 O `.env` é git-ignorado e só tem valores de desenvolvimento. Para recomeçar do zero (apaga os bancos
 locais): `docker compose down -v`.
 
+O LocalStack não guarda estado: a cada subida o `init.sh` cria tudo de novo, e o PostgreSQL continua com
+o volume. Por isso a chave `alias/customers-data` nasce sempre com o mesmo id e o mesmo material, tirado
+do SHA-256 de `CUSTOMERS_KMS_KEY_SEED` (do `.env`). Assim as chaves de dados que o `customers` gravou na
+`data_key` continuam abrindo depois de `docker compose restart localstack`. Se você trocar a semente,
+ou se o seu banco tiver chaves embrulhadas por uma chave KMS anterior, o `customers` deixa de abrir os
+cadastros (o `Decrypt` falha e as rotas devolvem 500). Nesse caso, esvazie o banco `customers` ou rode
+`docker compose down -v`. A `alias/documents` continua aleatória, porque o S3 também volta vazio a cada
+subida.
+
+O Keycloak também não tem volume: um contêiner novo importa o `realm.json` de novo. Por isso cada usuário
+sintético tem um `id` fixo no arquivo, e o `sub` do token, que liga a conta ao cadastro do `customers`,
+fica o mesmo depois de `docker compose down` e `up`. Sem esse `id`, o cadastro continuaria no banco, mas
+`GET /customers/me` responderia 404.
+
 ### 2. Build e testes
 
 ```bash
