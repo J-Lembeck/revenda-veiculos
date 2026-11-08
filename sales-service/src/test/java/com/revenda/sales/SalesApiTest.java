@@ -66,7 +66,7 @@ import tools.jackson.databind.ObjectMapper;
 @TestPropertySource(properties = {
         "revenda.security.oidc.issuer-uri=" + TestTokens.ISSUER,
         "revenda.security.rate-limit.enabled=false"})
-abstract class SalesApiTest {
+public abstract class SalesApiTest {
 
     protected static final String PURCHASES = "/purchases";
     protected static final String WEBHOOK = "/webhooks/payments";

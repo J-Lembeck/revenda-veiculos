@@ -5,21 +5,16 @@ import static org.assertj.core.api.Assertions.assertThat;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
 import java.util.UUID;
-import org.junit.jupiter.api.MethodOrderer;
-import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.TestMethodOrder;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.web.server.LocalManagementPort;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 
-@TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class SalesMetricsTests extends SalesApiTest {
 
     private static final String TRANSITIONS = "sales.purchase.transitions";
-    private static final String BY_STATUS = "sales.purchases";
     private static final String WEBHOOKS_REJECTED = "sales.payment.webhooks.rejected";
 
     @Autowired
@@ -27,20 +22,6 @@ class SalesMetricsTests extends SalesApiTest {
 
     @LocalManagementPort
     private int managementPort;
-
-    @Test
-    @Order(1)
-    void theGaugeShowsHowManyPurchasesAreInEachStatus() {
-        paidPurchase(newCustomer());
-        awaitingPurchase(newCustomer());
-
-        for (String status : new String[] {"PAID", "AWAITING_PAYMENT", "COMPLETED", "EXPIRED"}) {
-            long inDatabase = jdbc.sql("SELECT count(*) FROM purchase WHERE status = :status")
-                    .param("status", status).query(Long.class).single();
-            assertThat(meters.get(BY_STATUS).tag("status", status).gauge().value())
-                    .as(status).isEqualTo((double) inDatabase);
-        }
-    }
 
     @Test
     void eachStepOfTheTimelineIsCountedWithStatusPaymentAndReason() {

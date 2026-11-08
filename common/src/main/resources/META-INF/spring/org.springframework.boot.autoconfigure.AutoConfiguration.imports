@@ -8,3 +8,4 @@ com.revenda.common.messaging.ProcessedMessagesAutoConfiguration
 com.revenda.common.crypto.KmsAutoConfiguration
 com.revenda.common.crypto.CryptoAutoConfiguration
 com.revenda.common.openapi.OpenApiAutoConfiguration
+com.revenda.common.observability.ManagementPortAutoConfiguration

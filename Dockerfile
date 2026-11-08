@@ -10,7 +10,7 @@ COPY vehicles-service/pom.xml vehicles-service/
 COPY customers-service/pom.xml customers-service/
 COPY sales-service/pom.xml sales-service/
 COPY payment-gateway-mock/pom.xml payment-gateway-mock/
-COPY ${SERVICE}/src/ ${SERVICE}/src/
+COPY ["${SERVICE:?informe o módulo, como em docker build --build-arg SERVICE=vehicles-service .}/src/", "${SERVICE}/src/"]
 RUN --mount=type=cache,target=/root/.m2 \
     ./mvnw -B -q -pl ${SERVICE} -am package -DskipTests \
     && cp ${SERVICE}/target/${SERVICE}-*.jar /app.jar \
