@@ -25,7 +25,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import tools.jackson.databind.JsonNode;
 
-/** UC-14: a equipe vê o cliente mascarado e só o administrador revela o CPF, com motivo e auditado. */
+/** A equipe vê o cliente mascarado e só o administrador revela o CPF, com motivo e auditado. */
 @ExtendWith(OutputCaptureExtension.class)
 class CustomerStaffTests extends CustomersApiTest {
 

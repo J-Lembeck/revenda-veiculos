@@ -4,7 +4,7 @@ import com.revenda.common.error.FieldViolation;
 import java.util.Optional;
 import java.util.regex.Pattern;
 
-/** O CPF só com os 11 dígitos, já conferidos (RN-06). Fora do cadastro ele aparece mascarado. */
+/** O CPF só com os 11 dígitos, já conferidos. Fora do cadastro ele aparece mascarado. */
 public record Cpf(String digits) {
 
     public static final String INVALID = "CPF_INVALID";

@@ -15,8 +15,8 @@ public record CustomerDetails(String fullName, Cpf cpf, LocalDate birthDate, Pho
     public static final int AGE_OF_MAJORITY = 18;
 
     /**
-     * Confere, de uma vez, o CPF (RN-06) e a data de nascimento, de 1900 até ontem; os formatos dos outros campos
-     * já chegam conferidos. A maioridade não é exigida aqui: ela vale na compra (RN-05).
+     * Confere, de uma vez, o CPF e a data de nascimento, de 1900 até ontem; os formatos dos outros campos
+     * já chegam conferidos. A maioridade não é exigida aqui: ela vale na compra.
      */
     public static CustomerDetails of(String fullName, String cpf, LocalDate birthDate, String phone, Address address,
             LocalDate today) {
@@ -35,14 +35,14 @@ public record CustomerDetails(String fullName, Cpf cpf, LocalDate birthDate, Pho
         return new CustomerDetails(fullName.strip(), parsedCpf.orElseThrow(), birthDate, new Phone(phone), address);
     }
 
-    /** Com o nome, o telefone e o endereço novos; o nulo fica como está, e CPF e nascimento não mudam (RN-07). */
+    /** Com o nome, o telefone e o endereço novos; o nulo fica como está, e CPF e nascimento não mudam. */
     public CustomerDetails edit(String newFullName, Phone newPhone, Address newAddress) {
         return new CustomerDetails(newFullName == null ? fullName : newFullName.strip(), cpf, birthDate,
                 newPhone == null ? phone : newPhone, newAddress == null ? address : newAddress);
     }
 
     /**
-     * Tem 18 anos ou mais em {@code date} (RN-05): a maioridade começa no dia do aniversário. Quem nasceu em 29 de
+     * Tem 18 anos ou mais em {@code date}: a maioridade começa no dia do aniversário. Quem nasceu em 29 de
      * fevereiro a completa em 1º de março nos anos sem esse dia (Lei 810/1949, art. 3º).
      */
     public boolean isAdultOn(LocalDate date) {

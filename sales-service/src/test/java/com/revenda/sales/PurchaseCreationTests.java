@@ -22,7 +22,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.oauth2.client.OAuth2AuthorizedClientService;
 import tools.jackson.databind.JsonNode;
 
-/** UC-08: o pedido de compra, do caminho feliz a cada falha do caminho síncrono. */
+/** O pedido de compra, do caminho feliz a cada falha do caminho síncrono. */
 @ExtendWith(OutputCaptureExtension.class)
 class PurchaseCreationTests extends SalesApiTest {
 
@@ -52,7 +52,7 @@ class PurchaseCreationTests extends SalesApiTest {
         assertThat(purchase.get("closedReason").isNull()).isTrue();
         assertThat(purchase.get("vehicleId").asString()).isEqualTo(vehicle.toString());
         assertThat(purchase.get("customerId").asString()).isEqualTo(FakeNeighbors.customerIdOf(subject).toString());
-        assertThat(purchase.get("priceCents").asLong()).as("o preço do estoque, não o do corpo (RN-09)")
+        assertThat(purchase.get("priceCents").asLong()).as("o preço do estoque, não o do corpo")
                 .isEqualTo(4_590_000);
         JsonNode payment = purchase.get("payment");
         assertThat(payment.get("status").asString()).isEqualTo("PENDING");
@@ -158,7 +158,7 @@ class PurchaseCreationTests extends SalesApiTest {
                 "REJECTED/NONE/VEHICLE_UNAVAILABLE");
         assertThat(outboxOf(id)).isEmpty();
         assertThat(NEIGHBORS.callsTo("/charges")).noneMatch(call -> call.body().contains(id.toString()));
-        assertThat(buy(subject, UUID.randomUUID()).getStatusCode()).as("recusada não conta como ativa (RN-10)")
+        assertThat(buy(subject, UUID.randomUUID()).getStatusCode()).as("recusada não conta como ativa")
                 .isEqualTo(HttpStatus.CREATED);
     }
 

@@ -18,7 +18,7 @@ record CustomerRequest(
         @Schema(description = "11 dígitos, só números ou com pontos e traço; os dois últimos conferem os anteriores",
                 example = "52998224725")
         @NotBlank String cpf,
-        @Schema(description = "De 1900 até ontem. Menor de idade se cadastra; a compra é que exige 18 anos (RN-05)",
+        @Schema(description = "De 1900 até ontem. Menor de idade se cadastra; a compra é que exige 18 anos",
                 example = "1990-05-17")
         @NotNull LocalDate birthDate,
         @Schema(description = "+55, o DDD e o número, sem espaços", example = "+5511999990000")

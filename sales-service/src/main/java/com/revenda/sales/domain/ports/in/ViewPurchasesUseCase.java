@@ -8,7 +8,7 @@ import com.revenda.sales.domain.model.PurchaseStatus;
 import java.util.UUID;
 
 /**
- * UC-13: acompanhar compras. O cliente vê só as próprias — a de outra conta é {@code NOT_FOUND} (RN-15); a equipe
+ * Acompanhar compras. O cliente vê só as próprias — a de outra conta é {@code NOT_FOUND}; a equipe
  * vê todas.
  */
 public interface ViewPurchasesUseCase {

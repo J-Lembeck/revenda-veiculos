@@ -11,7 +11,7 @@ import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
 @Schema(description = "O que muda no próprio cadastro: o campo ausente (ou nulo) fica como está, e o endereço, se vier, "
-        + "vem inteiro. CPF, nascimento e e-mail não mudam por aqui (RN-07).")
+        + "vem inteiro. CPF, nascimento e e-mail não mudam por aqui.")
 record CustomerChangesRequest(
         @Schema(example = "Maria Exemplo Souza", nullable = true)
         @NullOrNotBlank @Size(max = CustomerDetails.FULL_NAME_LIMIT) String fullName,

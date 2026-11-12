@@ -47,10 +47,10 @@ class PurchaseController {
     private final ConfirmPickupUseCase confirmPickup;
     private final GetTransferDocumentUseCase transferDocument;
 
-    @Operation(summary = "Comprar: reservar e receber o código de pagamento", description = "UC-08 (DP-02). Numa "
-            + "chamada só: confere o cadastro (RN-05), reserva o veículo pelo preço do momento (RN-09) e emite o Pix, "
-            + "que vale por `PAYMENT_WINDOW` (30 minutos por padrão, RN-11). Uma compra em andamento por cliente "
-            + "(RN-10). Se o estoque ou o gateway não respondem, a compra fica `FAILED`, a reserva e a cobrança são "
+    @Operation(summary = "Comprar: reservar e receber o código de pagamento", description = "Numa "
+            + "chamada só: confere o cadastro, reserva o veículo pelo preço do momento e emite o Pix, "
+            + "que vale por `PAYMENT_WINDOW` (30 minutos por padrão). Uma compra em andamento por cliente. "
+            + "Se o estoque ou o gateway não respondem, a compra fica `FAILED`, a reserva e a cobrança são "
             + "desfeitas pelo outbox e a resposta é `503` — tente de novo com uma `Idempotency-Key` nova. Grava a "
             + "auditoria `PURCHASE_CREATED`.",
             parameters = @Parameter(in = ParameterIn.HEADER, name = "Idempotency-Key", required = true,
@@ -81,7 +81,7 @@ class PurchaseController {
                 .body(PurchaseResponse.of(details));
     }
 
-    @Operation(summary = "Listar compras", description = "UC-13. O cliente vê só as próprias; a equipe (`SELLER`, "
+    @Operation(summary = "Listar compras", description = "O cliente vê só as próprias; a equipe (`SELLER`, "
             + "`ADMIN`), todas. A mais recente primeiro, com o filtro opcional de `status`. Os mesmos campos do "
             + "detalhe, sem a linha do tempo.")
     @ApiResponse(responseCode = "200", description = "A página de compras.")
@@ -93,9 +93,9 @@ class PurchaseController {
                 PurchaseSummaryResponse::of);
     }
 
-    @Operation(summary = "Ver a compra com a linha do tempo", description = "UC-13. O dono vê a própria compra; a "
+    @Operation(summary = "Ver a compra com a linha do tempo", description = "O dono vê a própria compra; a "
             + "equipe, qualquer uma. A linha do tempo traz cada mudança, com o status, o pagamento e o código do "
-            + "motivo (`reason`). Compra de outra conta responde `404`, como a que não existe (RN-15).")
+            + "motivo (`reason`). Compra de outra conta responde `404`, como a que não existe.")
     @ApiResponse(responseCode = "200", description = "A compra.")
     @ApiResponse(responseCode = "400", description = "`VALIDATION_FAILED` com `id` `TYPE_INVALID`.")
     @ApiResponse(responseCode = "404", description = "`NOT_FOUND` — não existe, ou é de outro cliente.")
@@ -104,7 +104,7 @@ class PurchaseController {
         return PurchaseResponse.of(viewPurchases.view(id, viewer()));
     }
 
-    @Operation(summary = "Desistir da compra", description = "UC-11 (RN-13). Só o dono. Aguardando o pagamento: a "
+    @Operation(summary = "Desistir da compra", description = "Só o dono. Aguardando o pagamento: a "
             + "cobrança é cancelada e o veículo volta à venda. Paga: o valor é estornado inteiro (o pagamento fica "
             + "`REFUND_REQUESTED` até o gateway confirmar, `REFUNDED`) e o veículo volta à venda. As duas pelo outbox, "
             + "com retentativa. Grava a auditoria `PURCHASE_CANCELLED`. Não cria nada: sem `Idempotency-Key`; repetir "
@@ -121,7 +121,7 @@ class PurchaseController {
         return PurchaseResponse.of(cancelPurchase.cancel(id, token.getSubject()));
     }
 
-    @Operation(summary = "Confirmar a retirada", description = "UC-12 (RN-14). Só a equipe, com a compra paga. O CPF do "
+    @Operation(summary = "Confirmar a retirada", description = "Só a equipe, com a compra paga. O CPF do "
             + "documento que a pessoa apresentou na loja vai no corpo (nunca na URL) e é conferido no cadastro pelo "
             + "blind index, sem revelar o CPF de lá. É o pivô da saga: a compra fica `COMPLETED`, e a baixa no estoque "
             + "(`DELIVERED`) e o documento de transferência saem em seguida pelo outbox — o documento fica pronto em "
@@ -144,10 +144,10 @@ class PurchaseController {
         return PurchaseResponse.of(confirmPickup.confirm(id, request.presentedCpf()));
     }
 
-    @Operation(summary = "Baixar o documento de transferência", description = "DP-06. O dono da compra e a equipe. "
+    @Operation(summary = "Baixar o documento de transferência", description = "O dono da compra e a equipe. "
             + "Devolve um link assinado do PDF no bucket privado, que vale 5 minutos e é gerado a cada pedido (R16); o "
             + "PDF tem os campos do ATPV-e e não substitui o documento do Detran. Cada link entregue grava "
-            + "`PURCHASE_DOCUMENT_DOWNLOADED`. Compra de outra conta responde `404`, como a que não existe (RN-15).")
+            + "`PURCHASE_DOCUMENT_DOWNLOADED`. Compra de outra conta responde `404`, como a que não existe.")
     @ApiResponse(responseCode = "200", description = "O link e até quando ele vale; `Cache-Control: no-store`.")
     @ApiResponse(responseCode = "400", description = "`VALIDATION_FAILED` com `id` `TYPE_INVALID`.")
     @ApiResponse(responseCode = "404", description = "`NOT_FOUND` — não existe, ou é de outro cliente.")

@@ -52,13 +52,13 @@ class SalesApiDocsTests extends SalesApiTest {
         JsonNode pickup = operation("/purchases/{id}/pickup", "post");
         JsonNode document = operation("/purchases/{id}/document", "get");
 
-        assertThat(pickup.get("description").asString()).contains("UC-12", "RN-14", "Papéis: SELLER",
+        assertThat(pickup.get("description").asString()).contains("Papéis: SELLER",
                 "PURCHASE_PICKUP_CONFIRMED", "PURCHASE_PICKUP_REJECTED").doesNotContain("Papéis: CUSTOMER");
         assertThat(pickup.get("responses").propertyNames()).contains("200", "400", "404", "409", "422", "503");
         assertThat(pickup.at("/responses/422/description").asString()).contains("IDENTITY_MISMATCH");
         assertThat(pickup.at("/responses/409/description").asString()).contains("PURCHASE_NOT_PAID");
         assertThat(docs.at("/components/schemas/PickupRequest/properties").propertyNames()).containsExactly("cpf");
-        assertThat(document.get("description").asString()).contains("DP-06", "RN-15", "PURCHASE_DOCUMENT_DOWNLOADED",
+        assertThat(document.get("description").asString()).contains("responde `404`", "PURCHASE_DOCUMENT_DOWNLOADED",
                 "CUSTOMER", "SELLER");
         assertThat(document.at("/responses/409/description").asString()).contains("DOCUMENT_NOT_READY");
         assertThat(docs.at("/components/schemas/DocumentLinkResponse/properties").propertyNames())
@@ -69,8 +69,8 @@ class SalesApiDocsTests extends SalesApiTest {
     void thePurchaseIsForCustomersWithTheKeyItsErrorsAndTheRateLimit() {
         JsonNode create = operation("/purchases", "post");
 
-        assertThat(create.get("description").asString()).contains("UC-08", "RN-09", "RN-10", "Papéis: CUSTOMER",
-                "PURCHASE_CREATED");
+        assertThat(create.get("description").asString()).contains("pelo preço do momento",
+                "Uma compra em andamento por cliente", "Papéis: CUSTOMER", "PURCHASE_CREATED");
         assertThat(create.get("responses").propertyNames())
                 .contains("201", "400", "401", "403", "409", "422", "428", "429", "500", "503");
         assertThat(create.at("/responses/409/description").asString()).contains("VEHICLE_UNAVAILABLE",
@@ -106,10 +106,10 @@ class SalesApiDocsTests extends SalesApiTest {
         JsonNode view = operation("/purchases/{id}", "get");
         JsonNode cancel = operation("/purchases/{id}/cancellation", "post");
 
-        assertThat(list.get("description").asString()).contains("UC-13", "CUSTOMER", "SELLER");
-        assertThat(view.get("description").asString()).contains("UC-13", "RN-15");
+        assertThat(list.get("description").asString()).contains("CUSTOMER", "SELLER");
+        assertThat(view.get("description").asString()).contains("responde `404`");
         assertThat(view.get("responses").propertyNames()).contains("200", "400", "401", "403", "404", "500");
-        assertThat(cancel.get("description").asString()).contains("UC-11", "RN-13", "Papéis: CUSTOMER",
+        assertThat(cancel.get("description").asString()).contains("Papéis: CUSTOMER",
                 "PURCHASE_CANCELLED").doesNotContain("SELLER");
         assertThat(cancel.at("/responses/409/description").asString()).contains("PURCHASE_IN_PROGRESS",
                 "PURCHASE_NOT_CANCELLABLE");
@@ -121,7 +121,7 @@ class SalesApiDocsTests extends SalesApiTest {
     void theWebhookIsOpenSignedAndDocumentsItsAnswers() {
         JsonNode webhook = operation("/webhooks/payments", "post");
 
-        assertThat(webhook.get("description").asString()).contains("UC-09", "HMAC-SHA256", "PAYMENT_WEBHOOK_REJECTED");
+        assertThat(webhook.get("description").asString()).contains("HMAC-SHA256", "PAYMENT_WEBHOOK_REJECTED");
         assertThat(webhook.get("responses").propertyNames()).contains("200", "400", "401", "409");
         assertThat(webhook.at("/responses/401/description").asString()).contains("INVALID_SIGNATURE");
         JsonNode signature = webhook.get("parameters").valueStream()

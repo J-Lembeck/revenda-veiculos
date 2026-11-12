@@ -46,7 +46,7 @@ import org.springframework.web.bind.annotation.RestController;
 class VehicleController {
 
     private static final String VALIDATION = "`VALIDATION_FAILED`, com cada campo em `fields`: `REQUIRED`, "
-            + "`SIZE_INVALID`, `TYPE_INVALID`, `OUT_OF_RANGE` em `mileageKm` e as regras da RN-01 — `PLATE_INVALID`, "
+            + "`SIZE_INVALID`, `TYPE_INVALID`, `OUT_OF_RANGE` em `mileageKm` e as regras do cadastro — `PLATE_INVALID`, "
             + "`VIN_INVALID`, `RENAVAM_INVALID`, `YEAR_INVALID` em `manufactureYear` ou `modelYear`, `PRICE_INVALID`.";
     private static final String DUPLICATE = "`PLATE_ALREADY_REGISTERED`, `VIN_ALREADY_REGISTERED` ou "
             + "`RENAVAM_ALREADY_REGISTERED` — o campo já é de outro veículo do estoque.";
@@ -59,8 +59,8 @@ class VehicleController {
     private final ViewVehicleUseCase viewVehicle;
     private final ListSoldVehiclesUseCase listSoldVehicles;
 
-    @Operation(summary = "Cadastrar veículo", description = "UC-01. Entra à venda (`AVAILABLE`), na versão 0. Todas "
-            + "as regras da RN-01 são conferidas de uma vez. Grava a auditoria `VEHICLE_CREATED`.",
+    @Operation(summary = "Cadastrar veículo", description = "Entra à venda (`AVAILABLE`), na versão 0. Todas "
+            + "as regras do cadastro são conferidas de uma vez. Grava a auditoria `VEHICLE_CREATED`.",
             parameters = @Parameter(in = ParameterIn.HEADER, name = "Idempotency-Key", required = true,
                     description = "Chave do pedido, de 16 a 80 letras, números, `-` ou `_`: gere um UUID novo a "
                             + "cada cadastro. Repetir a chave com o mesmo corpo devolve a mesma resposta sem "
@@ -80,9 +80,9 @@ class VehicleController {
         return ResponseEntity.created(URI.create("/vehicles/" + vehicle.id())).body(StaffVehicleResponse.of(vehicle));
     }
 
-    @Operation(summary = "Editar veículo", description = "UC-02. Manda o veículo inteiro com a `version` lida; só grava "
+    @Operation(summary = "Editar veículo", description = "Manda o veículo inteiro com a `version` lida; só grava "
             + "se o estoque ainda está nela e o veículo segue à venda ou reservado. Não muda status nem compra: o "
-            + "preço novo de um reservado não muda a compra em curso (RN-02). Devolve a `version` nova e grava "
+            + "preço novo de um reservado não muda a compra em curso. Devolve a `version` nova e grava "
             + "`VEHICLE_UPDATED` com antes e depois.")
     @ApiResponse(responseCode = "200", description = "Editado.")
     @ApiResponse(responseCode = "400", description = VALIDATION + " Sem `version`: `version` `REQUIRED`.")
@@ -96,7 +96,7 @@ class VehicleController {
                 editVehicle.edit(new EditVehicleCommand(id, request.toDetails(), request.version())));
     }
 
-    @Operation(summary = "Vitrine", description = "UC-03. Só veículos à venda, do mais barato ao mais caro (RN-03), com "
+    @Operation(summary = "Vitrine", description = "Só veículos à venda, do mais barato ao mais caro, com "
             + "o `id` como desempate. Marca e modelo casam com o nome inteiro, sem diferença de maiúsculas; os anos "
             + "são do modelo; as faixas incluem as pontas. O item não traz placa, chassi nem RENAVAM.")
     @ApiResponse(responseCode = "200", description = "A página pedida; além do fim, `items` vazio.")
@@ -107,8 +107,8 @@ class VehicleController {
                 PublicVehicleResponse::of);
     }
 
-    @Operation(summary = "Vendidos", description = "UC-05. Vendidos e entregues, do menor para o maior preço de venda "
-            + "(RN-04), com o `id` como desempate, no formato da equipe.")
+    @Operation(summary = "Vendidos", description = "Vendidos e entregues, do menor para o maior preço de venda, "
+            + "com o `id` como desempate, no formato da equipe.")
     @ApiResponse(responseCode = "200", description = "A página pedida; além do fim, `items` vazio.")
     @ApiResponse(responseCode = "400", description = PAGE)
     @GetMapping("/sold")
@@ -116,7 +116,7 @@ class VehicleController {
         return PageResponse.of(listSoldVehicles.list(params.toPaging()), StaffVehicleResponse::of);
     }
 
-    @Operation(summary = "Detalhe do veículo", description = "UC-04. Sem token ou como cliente: só o veículo à venda, "
+    @Operation(summary = "Detalhe do veículo", description = "Sem token ou como cliente: só o veículo à venda, "
             + "no formato da vitrine. A equipe (`SELLER`, `ADMIN`) vê qualquer status, com placa, chassi e RENAVAM.")
     @ApiResponse(responseCode = "200", description = "O veículo, no formato de quem pede.", content = @Content(
             schema = @Schema(oneOf = {PublicVehicleResponse.class, StaffVehicleResponse.class})))

@@ -27,7 +27,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-@Tag(name = "Clientes", description = "O cadastro do comprador, feito por ele mesmo (DP-05).")
+@Tag(name = "Clientes", description = "O cadastro do comprador, feito por ele mesmo.")
 @RestController
 @RequestMapping("/customers")
 @RequiredArgsConstructor
@@ -42,8 +42,8 @@ class CustomerController {
     private final ExportOwnDataUseCase exportOwnData;
     private final RequestDeletionUseCase requestDeletion;
 
-    @Operation(summary = "Cadastrar-se como comprador", description = "UC-06. Uma conta tem no máximo um cadastro e um "
-            + "CPF, um cadastro ativo (RN-06). O e-mail vem da conta, pelo token — o corpo não tem e-mail. CPF, e-mail, "
+    @Operation(summary = "Cadastrar-se como comprador", description = "Uma conta tem no máximo um cadastro e um "
+            + "CPF, um cadastro ativo. O e-mail vem da conta, pelo token — o corpo não tem e-mail. CPF, e-mail, "
             + "telefone, nascimento e endereço são gravados cifrados; a resposta traz CPF, e-mail e telefone "
             + "mascarados. Grava a auditoria `CUSTOMER_REGISTERED`, sem dado pessoal.",
             parameters = @Parameter(in = ParameterIn.HEADER, name = "Idempotency-Key", required = true,
@@ -72,7 +72,7 @@ class CustomerController {
         return ResponseEntity.created(URI.create("/customers/me")).body(CustomerResponse.of(customer));
     }
 
-    @Operation(summary = "Ver o próprio cadastro", description = "UC-07. O cadastro da conta do token, no mesmo formato "
+    @Operation(summary = "Ver o próprio cadastro", description = "O cadastro da conta do token, no mesmo formato "
             + "da resposta do cadastro: CPF, e-mail e telefone mascarados, também para o titular; nome, nascimento e "
             + "endereço em claro. Cada conta só enxerga o próprio cadastro. Leitura sem auditoria: o titular vê o "
             + "próprio dado, com o CPF mascarado.")
@@ -83,7 +83,7 @@ class CustomerController {
         return CustomerResponse.of(viewOwnCustomer.view(token.getSubject()));
     }
 
-    @Operation(summary = "Atualizar o próprio cadastro", description = "UC-07. Muda nome, telefone e endereço (RN-07): o "
+    @Operation(summary = "Atualizar o próprio cadastro", description = "Muda nome, telefone e endereço: o "
             + "campo ausente ou nulo fica como está, e o endereço, se vier, vem inteiro, com as regras do cadastro. CPF, "
             + "nascimento e e-mail não mudam por aqui; o e-mail acompanha o da conta — se o token traz outro (e, com "
             + "`CUSTOMERS_REQUIRE_VERIFIED_EMAIL` ligado, verificado), a edição grava o novo. Só o que mudou é cifrado "
@@ -101,7 +101,7 @@ class CustomerController {
                 token.getClaimAsString(EMAIL_CLAIM), emailVerified(token))));
     }
 
-    @Operation(summary = "Exportar os próprios dados", description = "UC-15, acesso e portabilidade (LGPD, art. 18). "
+    @Operation(summary = "Exportar os próprios dados", description = "Acesso e portabilidade (LGPD, art. 18). "
             + "Tudo o que o cadastro guarda sobre a conta do token: nome, e-mail, telefone, nascimento e endereço em "
             + "claro, o CPF mascarado (como no `GET /customers/me`), o pedido de exclusão, se houver, e o histórico da "
             + "auditoria sobre o cadastro — quem leu ou mudou o dado (o titular, a equipe com o papel, o serviço de "
@@ -116,7 +116,7 @@ class CustomerController {
                 .body(CustomerExportResponse.of(exportOwnData.export(token.getSubject())));
     }
 
-    @Operation(summary = "Pedir a exclusão do próprio cadastro", description = "UC-15, eliminação (LGPD, art. 18). "
+    @Operation(summary = "Pedir a exclusão do próprio cadastro", description = "Eliminação (LGPD, art. 18). "
             + "Pergunta ao serviço de vendas até quando a lei pede guardar os dados. Sem venda concluída nem compra "
             + "aberta no prazo (`RETENTION_AFTER_SALE`, 5 anos depois da venda), o cadastro é anonimizado na hora: o "
             + "nome, o CPF, o e-mail, o telefone, o nascimento, o endereço e o vínculo com a conta são apagados; o id "

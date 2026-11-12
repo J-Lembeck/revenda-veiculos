@@ -28,7 +28,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import tools.jackson.databind.JsonNode;
 
-/** UC-07: o comprador vê e edita o próprio cadastro (RN-07). */
+/** O comprador vê e edita o próprio cadastro. */
 @ExtendWith(OutputCaptureExtension.class)
 class CustomerProfileTests extends CustomersApiTest {
 

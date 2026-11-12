@@ -4,6 +4,6 @@ import com.revenda.common.money.Money;
 
 public interface ReserveVehicleUseCase {
 
-    /** Reserva o veículo para a compra e devolve o preço que ela vai cobrar (RN-09). */
+    /** Reserva o veículo para a compra e devolve o preço que ela vai cobrar. */
     Money reserve(ReserveVehicleCommand command);
 }

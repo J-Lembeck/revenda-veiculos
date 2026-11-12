@@ -4,7 +4,7 @@ import com.revenda.sales.domain.model.PurchaseDetails;
 import java.util.UUID;
 
 /**
- * UC-12 (RN-14): a equipe confirma a retirada da compra paga, depois de conferir que o CPF do documento apresentado é o
+ * A equipe confirma a retirada da compra paga, depois de conferir que o CPF do documento apresentado é o
  * do comprador ({@code IDENTITY_MISMATCH} se não é). É o pivô da saga: a compra fica {@code COMPLETED}, e a baixa no
  * estoque e o documento de transferência saem pelo outbox.
  */

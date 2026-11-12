@@ -7,7 +7,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Pattern;
 
-/** O que a equipe informa de um veículo, no cadastro e na edição (RN-01). */
+/** O que a equipe informa de um veículo, no cadastro e na edição. */
 public record VehicleDetails(
         String brand,
         String model,
@@ -33,7 +33,10 @@ public record VehicleDetails(
     private static final Pattern RENAVAM = Pattern.compile("[0-9]{11}");
     private static final int[] RENAVAM_WEIGHTS = {3, 2, 9, 8, 7, 6, 5, 4, 3, 2};
 
-    /** Recusa, de uma vez, todo campo fora da RN-01; a unicidade de placa, chassi e RENAVAM fica com o estoque. */
+    /**
+     * Recusa, de uma vez, todo campo fora das regras do cadastro; a unicidade de placa, chassi e RENAVAM fica com o
+     * estoque.
+     */
     public void requireValid(int currentYear) {
         List<FieldViolation> violations = new ArrayList<>();
         if (plate == null || !PLATE.matcher(plate).matches()) {

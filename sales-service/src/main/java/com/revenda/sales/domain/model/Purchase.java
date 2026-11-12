@@ -11,7 +11,7 @@ import lombok.Builder;
 
 /**
  * A compra de um veículo por um cliente, o agregado da saga. Cada transição devolve a compra na versão seguinte com a
- * linha da linha do tempo que a acompanha. O preço é o que a reserva devolveu (RN-09) e não muda depois; do cliente só
+ * linha da linha do tempo que a acompanha. O preço é o que a reserva devolveu e não muda depois; do cliente só
  * ficam o id e o {@code sub} da conta.
  *
  * <p>O passo do orquestrador fora de ordem é erro de programa ({@link IllegalStateException}); o pedido do cliente
@@ -52,7 +52,7 @@ public record Purchase(
                 TransitionReason.PURCHASE_REQUESTED, now));
     }
 
-    /** T2: o veículo ficou preso a esta compra, pelo preço que a própria reserva devolveu (RN-09). */
+    /** T2: o veículo ficou preso a esta compra, pelo preço que a própria reserva devolveu. */
     public PurchaseChange reserve(Money reservedPrice, Instant now) {
         requireStep(PurchaseStatus.PENDING, "reservar");
         if (reservedPrice == null || !reservedPrice.isPositive()) {
@@ -62,7 +62,7 @@ public record Purchase(
                 TransitionReason.VEHICLE_RESERVED);
     }
 
-    /** Outra compra reservou antes, ou o veículo não está à venda (RN-08): nada a desfazer. */
+    /** Outra compra reservou antes, ou o veículo não está à venda: nada a desfazer. */
     public PurchaseChange reject(Instant now) {
         requireStep(PurchaseStatus.PENDING, "recusar a reserva");
         return close(next(PurchaseStatus.REJECTED, paymentStatus, now), ClosedReason.VEHICLE_UNAVAILABLE);
@@ -91,7 +91,7 @@ public record Purchase(
     }
 
     /**
-     * UC-11 (RN-13): antes de pagar, a cobrança é cancelada; depois, o pagamento é estornado. Durante a reserva, o
+     * Antes de pagar, a cobrança é cancelada; depois, o pagamento é estornado. Durante a reserva, o
      * cliente tenta de novo; depois de encerrada ou retirada, não há desistência.
      */
     public PurchaseChange cancel(Instant now) {
@@ -106,14 +106,14 @@ public record Purchase(
         };
     }
 
-    /** Se a compra pode ser retirada: só a paga (RN-14); antes de pagar, encerrada ou já retirada, não. */
+    /** Se a compra pode ser retirada: só a paga; antes de pagar, encerrada ou já retirada, não. */
     public void requirePickupAllowed() {
         if (status != PurchaseStatus.PAID) {
             throw BusinessException.of(SalesError.PURCHASE_NOT_PAID);
         }
     }
 
-    /** UC-12 (RN-14): a retirada da compra paga. A conferência do CPF vem antes e fica fora da compra. */
+    /** A retirada da compra paga. A conferência do CPF vem antes e fica fora da compra. */
     public PurchaseChange confirmPickup(Instant now) {
         requirePickupAllowed();
         return moveTo(next(PurchaseStatus.COMPLETED, paymentStatus, now).completedAt(now),
@@ -134,7 +134,7 @@ public record Purchase(
     }
 
     /**
-     * UC-09 (RN-12): o gateway avisou o pagamento desta cobrança. Aguardando, com o valor cobrado, a compra é paga — mesmo
+     * O gateway avisou o pagamento desta cobrança. Aguardando, com o valor cobrado, a compra é paga — mesmo
      * passado o vencimento, se a varredura ainda não a expirou; com outro valor, falha e pede o estorno. Encerrada, pede o
      * estorno e não revive. Vazio se o pagamento já foi registrado.
      */
@@ -174,7 +174,7 @@ public record Purchase(
     }
 
     /**
-     * UC-10 (RN-11): vencido o prazo sem pagamento, a compra expira, a cobrança é cancelada e o veículo liberado. Vazio
+     * Vencido o prazo sem pagamento, a compra expira, a cobrança é cancelada e o veículo liberado. Vazio
      * se ela já saiu de aguardando ou o prazo ainda não venceu.
      */
     public Optional<PurchaseChange> expire(Instant now) {

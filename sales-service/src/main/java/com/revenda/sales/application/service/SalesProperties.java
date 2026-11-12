@@ -8,7 +8,7 @@ import org.springframework.boot.context.properties.bind.DefaultValue;
 import org.springframework.validation.annotation.Validated;
 
 /**
- * Os prazos da saga e a conferência do webhook: {@code paymentWindow} é a validade do código de pagamento (RN-11);
+ * Os prazos da saga e a conferência do webhook: {@code paymentWindow} é a validade do código de pagamento;
  * {@code recoveryThreshold}, a idade em que a compra parada no meio do caminho síncrono é dada como morta;
  * {@code webhookSecret} e {@code webhookTolerance}, o segredo HMAC e a janela do carimbo de tempo do aviso do gateway;
  * {@code retentionAfterSale}, quanto tempo os dados do comprador ficam guardados depois da venda (LGPD).

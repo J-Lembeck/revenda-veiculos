@@ -159,6 +159,19 @@ completo grava auditoria na mesma transação, numa tabela em que a aplicação 
 cadastro guarda sobre ele e pede a exclusão: sem venda no prazo legal de guarda, o cadastro é anonimizado na hora;
 com venda, no fim do prazo. Detalhes em [LGPD: exportar e excluir os próprios dados](#lgpd-exportar-e-excluir-os-próprios-dados).
 
+### Na nuvem (proposta)
+
+![Arquitetura proposta na AWS](docs/arquitetura-aws.png)
+
+Nada disto está criado: é o desenho para produção, na região `sa-east-1`. A borda — Route 53, WAF, API Gateway e
+Cognito — recebe o cliente e o webhook do provedor de Pix, que em produção substitui o gateway simulado. Os três
+serviços rodam no ECS Fargate em sub-redes privadas, em duas zonas, com o Aurora Serverless v2 (PostgreSQL, um banco
+por serviço); as rotas `/internal` ficam só na rede privada. SQS, KMS, S3, Secrets Manager, ECR e CloudWatch são
+alcançados por VPC endpoints, e a única saída para a internet é uma NAT Gateway, para chamar o provedor de Pix e o
+Cognito. CloudTrail, GuardDuty, Macie, Inspector, AWS Config e Security Hub vigiam a conta. Localmente, o compose
+faz o papel de cada peça: PostgreSQL no lugar do Aurora, LocalStack no lugar de SQS, KMS, S3 e Secrets Manager, e
+Keycloak no lugar do Cognito.
+
 ## Decisões principais
 
 | Decisão | Por quê |
@@ -1140,6 +1153,7 @@ revenda-veiculos/
 │   ├── localstack/init.sh   fila, chaves, bucket e segredos
 │   └── keycloak/realm.json  realm, clientes, papéis e usuários sintéticos
 ├── postman/                 coleção com todas as rotas e o ambiente local
+├── docs/                    o diagrama da arquitetura proposta na AWS
 └── .github/
     ├── workflows/ci.yml     um job por serviço
     └── scripts/affected-modules.sh

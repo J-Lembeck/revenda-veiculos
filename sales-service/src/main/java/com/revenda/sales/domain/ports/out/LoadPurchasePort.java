@@ -17,7 +17,7 @@ public interface LoadPurchasePort {
     /** A linha do tempo da compra, na ordem em que foi gravada; vazia se a compra não existe. */
     List<PurchaseTransition> loadTransitions(UUID purchaseId);
 
-    /** Se o cliente tem compra em andamento ({@code PENDING}, {@code RESERVED}, {@code AWAITING_PAYMENT}), RN-10. */
+    /** Se o cliente tem compra em andamento ({@code PENDING}, {@code RESERVED}, {@code AWAITING_PAYMENT}). */
     boolean existsActiveFor(UUID customerId);
 
     /** A venda concluída mais recente do cliente e se ele tem compra aberta; {@code NONE} se não tem compra. */

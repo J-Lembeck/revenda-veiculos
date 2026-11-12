@@ -17,7 +17,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import tools.jackson.databind.JsonNode;
 
-/** UC-12 (RN-14): a retirada confere o CPF apresentado e é o pivô da saga. */
+/** A retirada confere o CPF apresentado e é o pivô da saga. */
 class PurchasePickupTests extends SalesApiTest {
 
     @Test
