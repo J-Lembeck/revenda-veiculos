@@ -304,6 +304,21 @@
       "optionalClientScopes": []
     },
     {
+      "clientId": "revenda-postman",
+      "name": "Postman local (login por usuário e senha, só desenvolvimento)",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": true,
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": true,
+      "serviceAccountsEnabled": false,
+      "redirectUris": [],
+      "webOrigins": [],
+      "defaultClientScopes": ["basic", "roles", "profile", "email", "acr"],
+      "optionalClientScopes": []
+    },
+    {
       "clientId": "sales-service",
       "name": "sales-service (chamadas entre serviços)",
       "enabled": true,

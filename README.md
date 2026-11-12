@@ -25,14 +25,27 @@ Do clone à compra de um carro, só com o Docker e o Postman.
 
 ### 1. Subir tudo
 
+Com o Docker aberto, um comando na raiz do repositório sobe a infraestrutura e os quatro serviços:
+
+| Sistema | Comando |
+|---|---|
+| Windows (PowerShell, cmd ou duplo clique) | `.\subir.cmd` |
+| macOS, Linux ou Git Bash | `sh subir.sh` |
+
+O script confere se o Docker está rodando, cria o `infra/.env` a partir do `infra/.env.example` se ele ainda não
+existir (git-ignorado, só com valores de desenvolvimento), sobe tudo esperando cada contêiner ficar saudável e, no
+fim, mostra os endereços do Swagger UI e do Keycloak e a coleção do Postman a importar. Pode
+rodar de novo quando quiser: o que já está no ar continua no ar.
+
+Sem o script, é o mesmo que:
+
 ```bash
 cd infra
 cp .env.example .env
 docker compose --profile apps up -d --build --wait
 ```
 
-No PowerShell, `Copy-Item .env.example .env` no lugar do `cp`. O `.env` é git-ignorado e só tem valores de
-desenvolvimento.
+No PowerShell, `Copy-Item .env.example .env` no lugar do `cp`.
 
 A primeira vez leva alguns minutos: o Docker baixa as imagens e compila os quatro serviços dentro de um
 contêiner (as dependências do Maven ficam em cache para a próxima). O `--wait` só volta quando os sete
@@ -61,17 +74,25 @@ Cada serviço responde `{"status":"UP"}` na porta de gestão, de 9081 a 9084. (N
 
 ### 3. Comprar um carro pelo Postman
 
-1. **Import** → os dois arquivos da pasta [`postman/`](postman); no canto superior direito, o ambiente
-   `revenda-local`.
-2. No ambiente, preencha o **valor atual** de `salesServiceClientSecret`, `customersServiceClientSecret`,
-   `paymentGatewayApiKey` e `paymentWebhookSecret` com os valores do seu `infra/.env`
-   ([qual é qual](#antes-de-começar)).
-3. Na pasta **00 · Entrar**, entre como `vera.vendedora` e como `ana.cliente` — as senhas de desenvolvimento
-   estão em [`infra/keycloak/realm.json`](infra/keycloak/realm.json) ([passo a passo](#entrar-com-cada-pessoa)).
-4. No **Runner**, rode a pasta **04 · Cadastro do cliente** (a Ana cria o cadastro) e depois a
-   **05 · Compra — fluxo feliz**.
+O jeito mais curto é a coleção **só da compra**, do login ao documento,
+[`postman/revenda-compra.postman_collection.json`](postman/revenda-compra.postman_collection.json):
+19 requisições, sem os cenários de erro. Se uma execução parar no meio, a seguinte começa encerrando a compra que
+ficou esperando pagamento, para a nova reserva não ser recusada.
 
-A pasta 05 é o processo inteiro do enunciado:
+1. **Import** → só `revenda-compra.postman_collection.json`, da pasta [`postman/`](postman). Não precisa de
+   ambiente nem de preencher nada: os endereços locais, as senhas de desenvolvimento da Ana e da Vera e a chave do
+   gateway simulado já estão nas variáveis da coleção — todos valores só de desenvolvimento, os mesmos do
+   [`infra/keycloak/realm.json`](infra/keycloak/realm.json) e do `infra/.env.example`.
+2. Na coleção, **Run collection**: o Runner roda as três pastas em ordem, sozinho. A pasta **1 · Entrar** faz o
+   login da `ana.cliente` e da `vera.vendedora` sem janela, por usuário e senha, num cliente do Keycloak que só
+   existe no ambiente local (`revenda-postman`). Também dá para mandar uma requisição por vez (**Send**), de cima
+   para baixo.
+
+A coleção completa (`revenda-veiculos.postman_collection.json`) tem os mesmos passos nas pastas 00, 04 e 05, e
+mais todas as rotas e cenários de erro (ela pede também os outros segredos do ambiente,
+[qual é qual](#antes-de-começar)).
+
+A pasta 3 (a 05 da coleção completa) é o processo inteiro do enunciado:
 
 1. a vendedora cadastra um veículo;
 2. a Ana reserva e recebe o código Pix numa chamada só — o preço é o do estoque, nunca o que o cliente manda;
@@ -310,7 +331,7 @@ prepara:
 |---|---|
 | `postgres` | bancos `vehicles`, `customers` e `sales`; para cada um, a *role* `<serviço>_owner` (dona do banco, roda as migrations) e a `<serviço>_app` (só conecta; a aplicação usa esta) |
 | `localstack` | fila `vehicle-commands.fifo` com DLQ (5 recebimentos), chaves KMS `alias/customers-data` e `alias/documents`, bucket `transfer-documents` (SSE-KMS, versionado, sem acesso público) e os segredos `revenda/payment-gateway-api-key` e `revenda/payment-webhook-secret` |
-| `keycloak` | realm `revenda`: papéis `CUSTOMER`, `SELLER` e `ADMIN`, clientes `revenda-web`, `sales-service` e `customers-service`, usuários sintéticos |
+| `keycloak` | realm `revenda`: papéis `CUSTOMER`, `SELLER` e `ADMIN`, clientes `revenda-web`, `revenda-postman` (só local, login por senha para a coleção da compra), `sales-service` e `customers-service`, usuários sintéticos |
 
 O LocalStack não guarda estado: a cada subida o `init.sh` cria tudo de novo, e o PostgreSQL continua com
 o volume. Por isso a chave `alias/customers-data` nasce sempre com o mesmo id e o mesmo material, tirado
@@ -1033,6 +1054,9 @@ A pasta [`postman/`](postman) tem a coleção com **todas as rotas da API**, cad
 caso de uso, o papel e o que deve aparecer, e testes do contrato:
 
 - `revenda-veiculos.postman_collection.json` — a coleção (formato Collection v2.1);
+- `revenda-compra.postman_collection.json` — só a compra que dá certo, do login ao documento, em três
+  pastas (1 · Entrar, 2 · Cadastro da cliente, 3 · Compra), com o login automático e tudo o que precisa nas
+  próprias variáveis, sem ambiente ([Comprar um carro pelo Postman](#3-comprar-um-carro-pelo-postman));
 - `revenda-local.postman_environment.json` — o ambiente `revenda-local`: endereços locais e as variáveis
   secretas, todas vazias.
 
@@ -1065,10 +1089,13 @@ caso de uso, o papel e o que deve aparecer, e testes do contrato:
 
 ### Entrar com cada pessoa
 
-A pasta **00 · Entrar** tem uma requisição por pessoa. O login é OAuth 2.0 *Authorization Code* com
-PKCE no cliente público `revenda-web` do Keycloak — sem segredo, e nenhuma senha fica na coleção: os
-usuários e as senhas de desenvolvimento estão só em
-[`infra/keycloak/realm.json`](infra/keycloak/realm.json) (tabela de usuários acima).
+A pasta **00 · Entrar** da coleção completa tem uma requisição por pessoa. O login é OAuth 2.0
+*Authorization Code* com PKCE no cliente público `revenda-web` do Keycloak — sem segredo, e nenhuma senha fica
+na coleção: os usuários e as senhas de desenvolvimento estão em
+[`infra/keycloak/realm.json`](infra/keycloak/realm.json) (tabela de usuários acima). A coleção da compra entra
+de outro jeito, sem janela: usuário e senha (as de desenvolvimento da Ana e da Vera, nas variáveis dela) no cliente
+`revenda-postman`, que só aceita esse tipo de login e só existe no Keycloak local — na nuvem, o login é sempre
+pela tela do Cognito.
 
 1. Abra a requisição da pessoa → aba **Authorization** → **Clear cookies** (o Keycloak guarda a sessão de
    quem entrou por último).
@@ -1144,6 +1171,7 @@ revenda-veiculos/
 ├── customers-service/
 ├── sales-service/
 ├── payment-gateway-mock/
+├── subir.cmd, subir.sh      sobem tudo com um comando (Windows; macOS, Linux e Git Bash)
 ├── Dockerfile               a imagem de qualquer serviço (--build-arg SERVICE=…)
 ├── .dockerignore
 ├── infra/
@@ -1152,7 +1180,7 @@ revenda-veiculos/
 │   ├── postgres/init.sh     bancos e roles
 │   ├── localstack/init.sh   fila, chaves, bucket e segredos
 │   └── keycloak/realm.json  realm, clientes, papéis e usuários sintéticos
-├── postman/                 coleção com todas as rotas e o ambiente local
+├── postman/                 coleção com todas as rotas, a da compra e o ambiente local
 ├── docs/                    o diagrama da arquitetura proposta na AWS
 └── .github/
     ├── workflows/ci.yml     um job por serviço
