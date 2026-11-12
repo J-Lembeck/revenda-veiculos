@@ -758,7 +758,7 @@
 		},
 		{
 			"name": "01 · Ambiente e segurança",
-			"description": "Saúde dos quatro serviços e as regras de acesso comuns (D-17 a D-19). Roda inteira no Runner e no Newman: os tokens de serviço vêm por *client credentials* com os segredos do ambiente; só a requisição com token de pessoa precisa da `ana.cliente` (pasta 00) e é pulada sem ela.\n\n- sem token ou token inválido → `401 UNAUTHENTICATED` com `WWW-Authenticate: Bearer`;\n- cliente fora da lista do serviço → `401` (D-18);\n- token de pessoa em `/internal/**`, rota interna não declarada → `403 FORBIDDEN`;\n- rota inexistente: `401` sem token, `404` com token;\n- `X-Request-Id` aceito só no padrão `[A-Za-z0-9._-]{8,64}`; fora dele, trocado por um UUID.",
+			"description": "Saúde dos quatro serviços e as regras de acesso comuns. Roda inteira no Runner e no Newman: os tokens de serviço vêm por *client credentials* com os segredos do ambiente; só a requisição com token de pessoa precisa da `ana.cliente` (pasta 00) e é pulada sem ela.\n\n- sem token ou token inválido → `401 UNAUTHENTICATED` com `WWW-Authenticate: Bearer`;\n- cliente fora da lista do serviço → `401`;\n- token de pessoa em `/internal/**`, rota interna não declarada → `403 FORBIDDEN`;\n- rota inexistente: `401` sem token, `404` com token;\n- `X-Request-Id` aceito só no padrão `[A-Za-z0-9._-]{8,64}`; fora dele, trocado por um UUID.",
 			"item": [
 				{
 					"name": "Token de serviço — sales-service (client credentials)",
@@ -1184,7 +1184,7 @@
 						"method": "GET",
 						"header": [],
 						"url": "{{vehiclesUrl}}/vehicles/sold",
-						"description": "Token válido do `customers-service` no `vehicles`, que só aceita o `sales-service` como serviço (`OIDC_SERVICE_CLIENTS`). Deve aparecer: `401 UNAUTHENTICATED` — o serviço confere o cliente do token (`azp`), não só emissor e assinatura (D-18).",
+						"description": "Token válido do `customers-service` no `vehicles`, que só aceita o `sales-service` como serviço (`OIDC_SERVICE_CLIENTS`). Deve aparecer: `401 UNAUTHENTICATED` — o serviço confere o cliente do token (`azp`), não só emissor e assinatura.",
 						"auth": {
 							"type": "bearer",
 							"bearer": [
@@ -1418,7 +1418,7 @@
 		},
 		{
 			"name": "02 · Estoque (vendedora)",
-			"description": "UC-01, UC-02 e UC-05 com `vera.vendedora` (`SELLER`) e `otto.admin` (`ADMIN`, que herda tudo do `SELLER` — D-17). Cada execução gera placa, chassi e RENAVAM novos e válidos, então a pasta pode rodar quantas vezes quiser. Cobre idempotência (`Idempotency-Key`), validação de campo, *optimistic lock* pela `version` e as recusas por papel.",
+			"description": "Cadastro, edição e vendidos com `vera.vendedora` (`SELLER`) e `otto.admin` (`ADMIN`, que herda tudo do `SELLER`). Cada execução gera placa, chassi e RENAVAM novos e válidos, então a pasta pode rodar quantas vezes quiser. Cobre idempotência (`Idempotency-Key`), validação de campo, *optimistic lock* pela `version` e as recusas por papel.",
 			"item": [
 				{
 					"name": "Cadastrar veículo",
@@ -1500,7 +1500,7 @@
 							}
 						],
 						"url": "{{vehiclesUrl}}/vehicles",
-						"description": "**UC-01** · `SELLER` (vera.vendedora). Deve aparecer: `201` com o veículo `AVAILABLE`, `version: 0`, `priceCents` inteiro e — por ser a equipe — placa, chassi e RENAVAM. O id vai para `vehicleId`.",
+						"description": "`SELLER` (vera.vendedora). Deve aparecer: `201` com o veículo `AVAILABLE`, `version: 0`, `priceCents` inteiro e — por ser a equipe — placa, chassi e RENAVAM. O id vai para `vehicleId`.",
 						"body": {
 							"mode": "raw",
 							"raw": "{\n  \"brand\": \"{{brand}}\",\n  \"model\": \"{{model}}\",\n  \"trimName\": \"{{trimName}}\",\n  \"manufactureYear\": 2023,\n  \"modelYear\": 2024,\n  \"color\": \"{{color}}\",\n  \"mileageKm\": 18500,\n  \"plate\": \"{{plate}}\",\n  \"vin\": \"{{vin}}\",\n  \"renavam\": \"{{renavam}}\",\n  \"priceCents\": {{priceCents}}\n}",
@@ -1708,7 +1708,7 @@
 							}
 						],
 						"url": "{{vehiclesUrl}}/vehicles",
-						"description": "A placa do veículo recém-cadastrado, com chassi e RENAVAM novos (RN-01). Deve aparecer: `409 PLATE_ALREADY_REGISTERED`.",
+						"description": "A placa do veículo recém-cadastrado, com chassi e RENAVAM novos. Deve aparecer: `409 PLATE_ALREADY_REGISTERED`.",
 						"body": {
 							"mode": "raw",
 							"raw": "{\n  \"brand\": \"{{brand}}\",\n  \"model\": \"{{model}}\",\n  \"trimName\": \"{{trimName}}\",\n  \"manufactureYear\": 2023,\n  \"modelYear\": 2024,\n  \"color\": \"{{color}}\",\n  \"mileageKm\": 18500,\n  \"plate\": \"{{plate}}\",\n  \"vin\": \"{{otherVin}}\",\n  \"renavam\": \"{{otherRenavam}}\",\n  \"priceCents\": {{priceCents}}\n}",
@@ -1784,7 +1784,7 @@
 							}
 						],
 						"url": "{{vehiclesUrl}}/vehicles",
-						"description": "Placa com hífen (o padrão é antigo ou Mercosul, sem hífen — RN-01). Deve aparecer: `400 VALIDATION_FAILED` com `plate` `PLATE_INVALID` em `fields`.",
+						"description": "Placa com hífen (o padrão é antigo ou Mercosul, sem hífen). Deve aparecer: `400 VALIDATION_FAILED` com `plate` `PLATE_INVALID` em `fields`.",
 						"body": {
 							"mode": "raw",
 							"raw": "{\n  \"brand\": \"{{brand}}\",\n  \"model\": \"{{model}}\",\n  \"trimName\": \"{{trimName}}\",\n  \"manufactureYear\": 2023,\n  \"modelYear\": 2024,\n  \"color\": \"{{color}}\",\n  \"mileageKm\": 18500,\n  \"plate\": \"ABC-1234\",\n  \"vin\": \"{{otherVin}}\",\n  \"renavam\": \"{{otherRenavam}}\",\n  \"priceCents\": {{priceCents}}\n}",
@@ -1939,7 +1939,7 @@
 							}
 						],
 						"url": "{{vehiclesUrl}}/vehicles",
-						"description": "R$ 10.000.000,01 — o teto é R$ 10.000.000,00 (RN-01). Deve aparecer: `400 VALIDATION_FAILED` com `priceCents` `PRICE_INVALID`.",
+						"description": "R$ 10.000.000,01 — o teto é R$ 10.000.000,00. Deve aparecer: `400 VALIDATION_FAILED` com `priceCents` `PRICE_INVALID`.",
 						"body": {
 							"mode": "raw",
 							"raw": "{\n  \"brand\": \"{{brand}}\",\n  \"model\": \"{{model}}\",\n  \"trimName\": \"{{trimName}}\",\n  \"manufactureYear\": 2023,\n  \"modelYear\": 2024,\n  \"color\": \"{{color}}\",\n  \"mileageKm\": 18500,\n  \"plate\": \"{{otherPlate}}\",\n  \"vin\": \"{{otherVin}}\",\n  \"renavam\": \"{{otherRenavam}}\",\n  \"priceCents\": 1000000001\n}",
@@ -2134,7 +2134,7 @@
 							}
 						],
 						"url": "{{vehiclesUrl}}/vehicles/{{vehicleId}}",
-						"description": "**UC-02** · `SELLER`. Muda o preço mandando a `version` lida (0). Deve aparecer: `200` com o preço novo e `version: 1`.",
+						"description": "`SELLER`. Muda o preço mandando a `version` lida (0). Deve aparecer: `200` com o preço novo e `version: 1`.",
 						"body": {
 							"mode": "raw",
 							"raw": "{\n  \"brand\": \"{{brand}}\",\n  \"model\": \"{{model}}\",\n  \"trimName\": \"{{trimName}}\",\n  \"manufactureYear\": 2023,\n  \"modelYear\": 2024,\n  \"color\": \"{{color}}\",\n  \"mileageKm\": 18500,\n  \"plate\": \"{{plate}}\",\n  \"vin\": \"{{vin}}\",\n  \"renavam\": \"{{renavam}}\",\n  \"priceCents\": {{newPriceCents}},\n  \"version\": 0\n}",
@@ -2173,7 +2173,7 @@
 							}
 						],
 						"url": "{{vehiclesUrl}}/vehicles/{{vehicleId}}",
-						"description": "Mesma edição, ainda com `version: 0` — como alguém que abriu a tela antes da edição anterior (RN-02). Deve aparecer: `409 VERSION_CONFLICT`.",
+						"description": "Mesma edição, ainda com `version: 0` — como alguém que abriu a tela antes da edição anterior. Deve aparecer: `409 VERSION_CONFLICT`.",
 						"body": {
 							"mode": "raw",
 							"raw": "{\n  \"brand\": \"{{brand}}\",\n  \"model\": \"{{model}}\",\n  \"trimName\": \"{{trimName}}\",\n  \"manufactureYear\": 2023,\n  \"modelYear\": 2024,\n  \"color\": \"{{color}}\",\n  \"mileageKm\": 18500,\n  \"plate\": \"{{plate}}\",\n  \"vin\": \"{{vin}}\",\n  \"renavam\": \"{{renavam}}\",\n  \"priceCents\": {{newPriceCents}},\n  \"version\": 0\n}",
@@ -2248,7 +2248,7 @@
 						"method": "GET",
 						"header": [],
 						"url": "{{vehiclesUrl}}/vehicles/{{vehicleId}}",
-						"description": "**UC-04** · a equipe vê qualquer veículo, com placa, chassi e RENAVAM. Deve aparecer: `200`, `version: 1`."
+						"description": "A equipe vê qualquer veículo, com placa, chassi e RENAVAM. Deve aparecer: `200`, `version: 1`."
 					},
 					"response": [],
 					"id": "dacad620-3449-5da2-9249-b393c896b874"
@@ -2318,7 +2318,7 @@
 							}
 						],
 						"url": "{{vehiclesUrl}}/vehicles",
-						"description": "**UC-01** · `ADMIN` (otto.admin) — a rota declara `SELLER` e o `ADMIN` herda (D-17). Deve aparecer: `201`. Serve para a vitrine ter dois veículos em ordem de preço; o id vai para `cheaperVehicleId`.",
+						"description": "`ADMIN` (otto.admin) — a rota declara `SELLER` e o `ADMIN` herda. Deve aparecer: `201`. Serve para a vitrine ter dois veículos em ordem de preço; o id vai para `cheaperVehicleId`.",
 						"auth": {
 							"type": "bearer",
 							"bearer": [
@@ -2373,7 +2373,7 @@
 						"method": "GET",
 						"header": [],
 						"url": "{{vehiclesUrl}}/vehicles/sold?page=0&size=100",
-						"description": "**UC-05** · `SELLER`. Deve aparecer: `200` com `SOLD` e `DELIVERED`, em ordem crescente de `soldPriceCents` (RN-04). Numa base nova a lista vem vazia; o fluxo feliz (pasta 05) põe um veículo nela."
+						"description": "`SELLER`. Deve aparecer: `200` com `SOLD` e `DELIVERED`, em ordem crescente de `soldPriceCents`. Numa base nova a lista vem vazia; o fluxo feliz (pasta 05) põe um veículo nela."
 					},
 					"response": [],
 					"id": "2e2fe020-0eae-5460-8779-f5cab4233a60"
@@ -2462,7 +2462,7 @@
 		},
 		{
 			"name": "03 · Vitrine pública (visitante)",
-			"description": "UC-03 e UC-04 sem token. Só veículos `AVAILABLE`, do mais barato ao mais caro, `id` como desempate (RN-03); sem placa, chassi nem RENAVAM. Usa os dois veículos da pasta 02.",
+			"description": "Vitrine e detalhe sem token. Só veículos `AVAILABLE`, do mais barato ao mais caro, `id` como desempate; sem placa, chassi nem RENAVAM. Usa os dois veículos da pasta 02.",
 			"item": [
 				{
 					"name": "Vitrine, do mais barato ao mais caro",
@@ -2507,7 +2507,7 @@
 						"method": "GET",
 						"header": [],
 						"url": "{{vehiclesUrl}}/vehicles?page=0&size=100",
-						"description": "**UC-03** · visitante. Deve aparecer: `200` com a página `{ items, page, size, totalItems }`, preços crescentes e os dois veículos da pasta 02."
+						"description": "Visitante. Deve aparecer: `200` com a página `{ items, page, size, totalItems }`, preços crescentes e os dois veículos da pasta 02."
 					},
 					"response": [],
 					"id": "d183470b-38a0-593f-9465-66149aa847e8"
@@ -2619,7 +2619,7 @@
 						"method": "GET",
 						"header": [],
 						"url": "{{vehiclesUrl}}/vehicles/{{vehicleId}}",
-						"description": "**UC-04** · visitante. Deve aparecer: `200` sem placa, chassi nem RENAVAM."
+						"description": "Visitante. Deve aparecer: `200` sem placa, chassi nem RENAVAM."
 					},
 					"response": [],
 					"id": "884639a3-a6ec-5cee-98b6-f38cc3d70d68"
@@ -2656,7 +2656,7 @@
 		},
 		{
 			"name": "04 · Cadastro do cliente",
-			"description": "UC-06 e UC-07. O e-mail vem do token, não do corpo; o CPF é sintético (dígito válido, fixo por pessoa nas variáveis da coleção) e só aparece mascarado.\n\nNa primeira execução o cadastro é criado (`201`); nas seguintes a conta já tem cadastro e a criação responde `409 CUSTOMER_ALREADY_REGISTERED` — os dois passam. O Runner espaça os `POST /customers` (5 por minuto), então a pasta leva cerca de um minuto.",
+			"description": "Cadastro do comprador e o próprio cadastro. O e-mail vem do token, não do corpo; o CPF é sintético (dígito válido, fixo por pessoa nas variáveis da coleção) e só aparece mascarado.\n\nNa primeira execução o cadastro é criado (`201`); nas seguintes a conta já tem cadastro e a criação responde `409 CUSTOMER_ALREADY_REGISTERED` — os dois passam. O Runner espaça os `POST /customers` (5 por minuto), então a pasta leva cerca de um minuto.",
 			"item": [
 				{
 					"name": "Ana cria o próprio cadastro",
@@ -2705,7 +2705,7 @@
 							}
 						],
 						"url": "{{customersUrl}}/customers",
-						"description": "**UC-06** · `CUSTOMER` (ana.cliente). O corpo não tem e-mail: ele vem da conta, pelo token. Deve aparecer: `201` com `Location: /customers/me`, `cpfMasked` (`***.xxx.xxx-**`), `emailMasked` (`a***@example.test`) e `phoneMasked` (`(11) *****-0001`) — ou `409 CUSTOMER_ALREADY_REGISTERED` se já foi criado antes. Nenhum CPF, e-mail ou telefone em claro na resposta.",
+						"description": "`CUSTOMER` (ana.cliente). O corpo não tem e-mail: ele vem da conta, pelo token. Deve aparecer: `201` com `Location: /customers/me`, `cpfMasked` (`***.xxx.xxx-**`), `emailMasked` (`a***@example.test`) e `phoneMasked` (`(11) *****-0001`) — ou `409 CUSTOMER_ALREADY_REGISTERED` se já foi criado antes. Nenhum CPF, e-mail ou telefone em claro na resposta.",
 						"auth": {
 							"type": "bearer",
 							"bearer": [
@@ -2757,7 +2757,7 @@
 						"method": "GET",
 						"header": [],
 						"url": "{{customersUrl}}/customers/me",
-						"description": "**UC-07** · `CUSTOMER`. Deve aparecer: `200` com CPF, e-mail e telefone **mascarados** — também para a titular — e o e-mail da conta. O id vai para `customerId`.",
+						"description": "`CUSTOMER`. Deve aparecer: `200` com CPF, e-mail e telefone **mascarados** — também para a titular — e o e-mail da conta. O id vai para `customerId`.",
 						"auth": {
 							"type": "bearer",
 							"bearer": [
@@ -2811,7 +2811,7 @@
 							}
 						],
 						"url": "{{customersUrl}}/customers/me",
-						"description": "**UC-07** · `CUSTOMER`. Só o que vem no corpo muda — nome, telefone e endereço (RN-07); o endereço vem inteiro. Sem `Idempotency-Key`: não cria nada. Deve aparecer: `200` com o telefone `(11) *****-7777`, o endereço novo, o nome de antes e o CPF ainda mascarado. A auditoria `CUSTOMER_UPDATED` guarda só os nomes dos campos que mudaram; numa execução seguinte nada muda e nada é gravado (também `200`).",
+						"description": "`CUSTOMER`. Só o que vem no corpo muda — nome, telefone e endereço; o endereço vem inteiro. Sem `Idempotency-Key`: não cria nada. Deve aparecer: `200` com o telefone `(11) *****-7777`, o endereço novo, o nome de antes e o CPF ainda mascarado. A auditoria `CUSTOMER_UPDATED` guarda só os nomes dos campos que mudaram; numa execução seguinte nada muda e nada é gravado (também `200`).",
 						"auth": {
 							"type": "bearer",
 							"bearer": [
@@ -2868,7 +2868,7 @@
 							}
 						],
 						"url": "{{customersUrl}}/customers/me",
-						"description": "RN-07: CPF e data de nascimento não mudam pelo autoatendimento (só o `ADMIN` corrige); o e-mail é o da conta. Deve aparecer: `400 VALIDATION_FAILED` com `cpf` e `birthDate` em `NOT_EDITABLE` — e nada muda. A resposta não repete o CPF enviado.",
+						"description": "CPF e data de nascimento não mudam pelo autoatendimento (só o `ADMIN` corrige); o e-mail é o da conta. Deve aparecer: `400 VALIDATION_FAILED` com `cpf` e `birthDate` em `NOT_EDITABLE` — e nada muda. A resposta não repete o CPF enviado.",
 						"auth": {
 							"type": "bearer",
 							"bearer": [
@@ -2990,7 +2990,7 @@
 							}
 						],
 						"url": "{{customersUrl}}/customers",
-						"description": "**UC-06** · `CUSTOMER` (duda.cliente) — a segunda cliente, que reserva antes da Ana no cenário de concorrência. Deve aparecer: `201`, ou `409 CUSTOMER_ALREADY_REGISTERED` numa execução seguinte.",
+						"description": "`CUSTOMER` (duda.cliente) — a segunda cliente, que reserva antes da Ana no cenário de concorrência. Deve aparecer: `201`, ou `409 CUSTOMER_ALREADY_REGISTERED` numa execução seguinte.",
 						"auth": {
 							"type": "bearer",
 							"bearer": [
@@ -3072,7 +3072,7 @@
 							}
 						],
 						"url": "{{customersUrl}}/customers",
-						"description": "**UC-06** · `CUSTOMER` (caio.menor), nascido há 16 anos. O cadastro é aceito; a compra é que vai ser recusada (RN-05, pasta 06). Deve aparecer: `201`, ou `409 CUSTOMER_ALREADY_REGISTERED`.",
+						"description": "`CUSTOMER` (caio.menor), nascido há 16 anos. O cadastro é aceito; a compra é que vai ser recusada (pasta 06). Deve aparecer: `201`, ou `409 CUSTOMER_ALREADY_REGISTERED`.",
 						"auth": {
 							"type": "bearer",
 							"bearer": [
@@ -3130,7 +3130,7 @@
 							}
 						],
 						"url": "{{customersUrl}}/customers",
-						"description": "`bruno.sem-cadastro` tenta se cadastrar com o CPF da Ana (RN-06). Deve aparecer: `409 CPF_ALREADY_REGISTERED` — conferido pelo *blind index*, sem decifrar nada.",
+						"description": "`bruno.sem-cadastro` tenta se cadastrar com o CPF da Ana. Deve aparecer: `409 CPF_ALREADY_REGISTERED` — conferido pelo *blind index*, sem decifrar nada.",
 						"auth": {
 							"type": "bearer",
 							"bearer": [
@@ -3353,7 +3353,7 @@
 						"method": "GET",
 						"header": [],
 						"url": "{{customersUrl}}/customers/me",
-						"description": "**UC-07** · cada conta só enxerga o próprio cadastro, e o Bruno não tem um. Deve aparecer: `404 NOT_FOUND`.",
+						"description": "Cada conta só enxerga o próprio cadastro, e o Bruno não tem um. Deve aparecer: `404 NOT_FOUND`.",
 						"auth": {
 							"type": "bearer",
 							"bearer": [
@@ -3437,7 +3437,7 @@
 						"method": "GET",
 						"header": [],
 						"url": "{{customersUrl}}/customers/me",
-						"description": "O próprio cadastro é só do comprador; a equipe vê o cliente mascarado por `GET /customers/{id}` (UC-14). Deve aparecer: `403 FORBIDDEN`.",
+						"description": "O próprio cadastro é só do comprador; a equipe vê o cliente mascarado por `GET /customers/{id}`. Deve aparecer: `403 FORBIDDEN`.",
 						"auth": {
 							"type": "bearer",
 							"bearer": [
@@ -3481,7 +3481,7 @@
 							}
 						],
 						"url": "{{customersUrl}}/customers",
-						"description": "Cadastro de comprador é autoatendimento (DP-05). Deve aparecer: `403 FORBIDDEN`.",
+						"description": "Cadastro de comprador é autoatendimento. Deve aparecer: `403 FORBIDDEN`.",
 						"auth": {
 							"type": "bearer",
 							"bearer": [
@@ -3610,7 +3610,7 @@
 							}
 						],
 						"url": "{{vehiclesUrl}}/vehicles",
-						"description": "**UC-01** · `SELLER` (vera.vendedora). Um veículo novo, com placa, chassi e RENAVAM gerados, só para este cenário. Deve aparecer: `201` com `status: AVAILABLE`; o id vai para `vehicleId`.",
+						"description": "`SELLER` (vera.vendedora). Um veículo novo, com placa, chassi e RENAVAM gerados, só para este cenário. Deve aparecer: `201` com `status: AVAILABLE`; o id vai para `vehicleId`.",
 						"auth": {
 							"type": "bearer",
 							"bearer": [
@@ -3698,7 +3698,7 @@
 							}
 						],
 						"url": "{{salesUrl}}/purchases",
-						"description": "**UC-08** · `CUSTOMER` (ana.cliente). Reservar e receber o código numa chamada só (DP-02). O corpo manda `priceCents: 100` de propósito: valor vindo do cliente é ignorado e a compra sai pelo preço do veículo no momento da reserva (RN-09). Deve aparecer: `201`, `status: AWAITING_PAYMENT`, `priceCents` igual ao do veículo, `payment` com o código Pix e o vencimento, e a linha do tempo `PENDING → RESERVED → AWAITING_PAYMENT`.",
+						"description": "`CUSTOMER` (ana.cliente). Reservar e receber o código numa chamada só. O corpo manda `priceCents: 100` de propósito: valor vindo do cliente é ignorado e a compra sai pelo preço do veículo no momento da reserva. Deve aparecer: `201`, `status: AWAITING_PAYMENT`, `priceCents` igual ao do veículo, `payment` com o código Pix e o vencimento, e a linha do tempo `PENDING → RESERVED → AWAITING_PAYMENT`.",
 						"auth": {
 							"type": "bearer",
 							"bearer": [
@@ -3897,7 +3897,7 @@
 						"method": "GET",
 						"header": [],
 						"url": "{{vehiclesUrl}}/vehicles/{{vehicleId}}",
-						"description": "DP-01: reservado não aparece como \"reservado\" — some. Deve aparecer: `404` para o visitante.",
+						"description": "Reservado não aparece como \"reservado\" — some. Deve aparecer: `404` para o visitante.",
 						"auth": {
 							"type": "noauth"
 						}
@@ -3925,7 +3925,7 @@
 						"method": "GET",
 						"header": [],
 						"url": "{{salesUrl}}/purchases/{{purchaseId}}",
-						"description": "RN-15: recurso de outro cliente responde `404`, nunca `403` — não revela que a compra existe. Deve aparecer: `404 NOT_FOUND`.",
+						"description": "Recurso de outro cliente responde `404`, nunca `403` — não revela que a compra existe. Deve aparecer: `404 NOT_FOUND`.",
 						"auth": {
 							"type": "bearer",
 							"bearer": [
@@ -4084,7 +4084,7 @@
 						"method": "GET",
 						"header": [],
 						"url": "{{salesUrl}}/purchases/{{purchaseId}}",
-						"description": "**UC-13** · `CUSTOMER`. O webhook confirma o pagamento (RN-12) — nunca uma chamada do cliente. Deve aparecer: `status: PAID` e `payment.status: PAID`.",
+						"description": "`CUSTOMER`. O webhook confirma o pagamento — nunca uma chamada do cliente. Deve aparecer: `status: PAID` e `payment.status: PAID`.",
 						"auth": {
 							"type": "bearer",
 							"bearer": [
@@ -4173,7 +4173,7 @@
 							}
 						],
 						"url": "{{salesUrl}}/purchases/{{purchaseId}}/pickup",
-						"description": "Retirada é da equipe (RN-14). Deve aparecer: `403 FORBIDDEN`.",
+						"description": "Retirada é da equipe. Deve aparecer: `403 FORBIDDEN`.",
 						"auth": {
 							"type": "bearer",
 							"bearer": [
@@ -4247,7 +4247,7 @@
 							}
 						],
 						"url": "{{salesUrl}}/purchases/{{purchaseId}}/pickup",
-						"description": "**UC-12** · `SELLER`. O documento apresentado na loja não é o da compradora (o CPF vai no corpo, nunca na URL). Deve aparecer: `422 IDENTITY_MISMATCH` — conferido pelo *blind index*, sem revelar o CPF do cadastro.",
+						"description": "`SELLER`. O documento apresentado na loja não é o da compradora (o CPF vai no corpo, nunca na URL). Deve aparecer: `422 IDENTITY_MISMATCH` — conferido pelo *blind index*, sem revelar o CPF do cadastro.",
 						"auth": {
 							"type": "bearer",
 							"bearer": [
@@ -4301,7 +4301,7 @@
 							}
 						],
 						"url": "{{salesUrl}}/purchases/{{purchaseId}}/pickup",
-						"description": "**UC-12** · `SELLER` (vera.vendedora), com o CPF da Ana. É o pivô da saga: daqui não há volta. Deve aparecer: `200` com `status: COMPLETED`; a baixa no estoque e o documento saem em seguida.",
+						"description": "`SELLER` (vera.vendedora), com o CPF da Ana. É o pivô da saga: daqui não há volta. Deve aparecer: `200` com `status: COMPLETED`; a baixa no estoque e o documento saem em seguida.",
 						"auth": {
 							"type": "bearer",
 							"bearer": [
@@ -4431,7 +4431,7 @@
 						"method": "GET",
 						"header": [],
 						"url": "{{vehiclesUrl}}/vehicles/sold?page=0&size=100",
-						"description": "**UC-05** · `SELLER`. Deve aparecer: o veículo `DELIVERED` com `soldPriceCents` igual ao preço da compra, em ordem crescente de preço de venda (RN-04).",
+						"description": "`SELLER`. Deve aparecer: o veículo `DELIVERED` com `soldPriceCents` igual ao preço da compra, em ordem crescente de preço de venda.",
 						"auth": {
 							"type": "bearer",
 							"bearer": [
@@ -4522,7 +4522,7 @@
 						"method": "GET",
 						"header": [],
 						"url": "{{salesUrl}}/purchases/{{purchaseId}}/document",
-						"description": "RN-15. Deve aparecer: `404 NOT_FOUND`.",
+						"description": "Compra de outro cliente responde como se não existisse. Deve aparecer: `404 NOT_FOUND`.",
 						"auth": {
 							"type": "bearer",
 							"bearer": [
@@ -4607,7 +4607,7 @@
 						"method": "GET",
 						"header": [],
 						"url": "{{salesUrl}}/purchases/{{purchaseId}}",
-						"description": "**UC-13** · `CUSTOMER`. Deve aparecer: `COMPLETED` e a linha do tempo inteira, `PENDING → RESERVED → AWAITING_PAYMENT → PAID → COMPLETED → COMPLETED` — o último é o documento emitido (`DOCUMENT_ISSUED`, D-36); cada passo é uma linha de `purchase_transition`.",
+						"description": "`CUSTOMER`. Deve aparecer: `COMPLETED` e a linha do tempo inteira, `PENDING → RESERVED → AWAITING_PAYMENT → PAID → COMPLETED → COMPLETED` — o último é o documento emitido (`DOCUMENT_ISSUED`); cada passo é uma linha de `purchase_transition`.",
 						"auth": {
 							"type": "bearer",
 							"bearer": [
@@ -4642,7 +4642,7 @@
 						"method": "POST",
 						"header": [],
 						"url": "{{salesUrl}}/purchases/{{purchaseId}}/cancellation",
-						"description": "Depois da retirada não é desistência — é devolução, fora do escopo (RN-13). Deve aparecer: `409 PURCHASE_NOT_CANCELLABLE`.",
+						"description": "Depois da retirada não é desistência — é devolução, fora do escopo. Deve aparecer: `409 PURCHASE_NOT_CANCELLABLE`.",
 						"auth": {
 							"type": "bearer",
 							"bearer": [
@@ -4684,7 +4684,7 @@
 						"method": "GET",
 						"header": [],
 						"url": "{{salesUrl}}/purchases?page=0&size=20",
-						"description": "**UC-13** · `CUSTOMER` vê só as próprias compras, a mais recente primeiro. Deve aparecer: a página com a compra concluída.",
+						"description": "`CUSTOMER` vê só as próprias compras, a mais recente primeiro. Deve aparecer: a página com a compra concluída.",
 						"auth": {
 							"type": "bearer",
 							"bearer": [
@@ -4721,7 +4721,7 @@
 						"method": "GET",
 						"header": [],
 						"url": "{{salesUrl}}/purchases?status=PAGA",
-						"description": "**UC-13**. O filtro `status` aceita só os status da compra. Deve aparecer: `400 VALIDATION_FAILED` com `status` `TYPE_INVALID`.",
+						"description": "O filtro `status` aceita só os status da compra. Deve aparecer: `400 VALIDATION_FAILED` com `status` `TYPE_INVALID`.",
 						"auth": {
 							"type": "bearer",
 							"bearer": [
@@ -4740,11 +4740,11 @@
 		},
 		{
 			"name": "06 · Compra — falhas do enunciado",
-			"description": "Cada falha pedida no enunciado e a compensação da saga. Cada subpasta cadastra o próprio veículo e termina sem deixar compra ativa da Ana (RN-10), para a próxima poder comprar. Rode na ordem; a de expiração fica por último porque espera o prazo.\n\nDesistir durante `PENDING`/`RESERVED` (`409 PURCHASE_IN_PROGRESS`) dura milissegundos e não dá para provocar pelo Postman — fica nos testes automatizados do `sales`, como a corrida com N reservas simultâneas no `vehicles`.",
+			"description": "Cada falha pedida no enunciado e a compensação da saga. Cada subpasta cadastra o próprio veículo e termina sem deixar compra ativa da Ana, para a próxima poder comprar. Rode na ordem; a de expiração fica por último porque espera o prazo.\n\nDesistir durante `PENDING`/`RESERVED` (`409 PURCHASE_IN_PROGRESS`) dura milissegundos e não dá para provocar pelo Postman — fica nos testes automatizados do `sales`, como a corrida com N reservas simultâneas no `vehicles`.",
 			"item": [
 				{
 					"name": "06.1 · Reserva concorrente",
-					"description": "Duas clientes querem o mesmo carro. A reserva é um `UPDATE` condicional (`WHERE status = 'AVAILABLE'`): quem chega primeiro leva, a outra recebe `409 VEHICLE_UNAVAILABLE` e a compra dela fica `REJECTED` (RN-08). As requisições aqui são uma depois da outra; a corrida de verdade, com N pedidos ao mesmo tempo, é o teste de concorrência do `vehicles`.",
+					"description": "Duas clientes querem o mesmo carro. A reserva é um `UPDATE` condicional (`WHERE status = 'AVAILABLE'`): quem chega primeiro leva, a outra recebe `409 VEHICLE_UNAVAILABLE` e a compra dela fica `REJECTED`. As requisições aqui são uma depois da outra; a corrida de verdade, com N pedidos ao mesmo tempo, é o teste de concorrência do `vehicles`.",
 					"item": [
 						{
 							"name": "Vendedora cadastra o veículo do cenário",
@@ -4817,7 +4817,7 @@
 									}
 								],
 								"url": "{{vehiclesUrl}}/vehicles",
-								"description": "**UC-01** · `SELLER` (vera.vendedora). Um veículo novo, com placa, chassi e RENAVAM gerados, só para este cenário. Deve aparecer: `201` com `status: AVAILABLE`; o id vai para `vehicleId`.",
+								"description": "`SELLER` (vera.vendedora). Um veículo novo, com placa, chassi e RENAVAM gerados, só para este cenário. Deve aparecer: `201` com `status: AVAILABLE`; o id vai para `vehicleId`.",
 								"auth": {
 									"type": "bearer",
 									"bearer": [
@@ -4881,7 +4881,7 @@
 									}
 								],
 								"url": "{{salesUrl}}/purchases",
-								"description": "**UC-08** · `CUSTOMER` (duda.cliente). Deve aparecer: `201 AWAITING_PAYMENT` — o veículo agora está preso à compra da Duda.",
+								"description": "`CUSTOMER` (duda.cliente). Deve aparecer: `201 AWAITING_PAYMENT` — o veículo agora está preso à compra da Duda.",
 								"auth": {
 									"type": "bearer",
 									"bearer": [
@@ -4935,7 +4935,7 @@
 									}
 								],
 								"url": "{{salesUrl}}/purchases",
-								"description": "**UC-08** · `CUSTOMER` (ana.cliente). Deve aparecer: `409 VEHICLE_UNAVAILABLE` com a `message` em português (\"acabou de ser reservado por outra pessoa\"); nada a compensar.",
+								"description": "`CUSTOMER` (ana.cliente). Deve aparecer: `409 VEHICLE_UNAVAILABLE` com a `message` em português (\"acabou de ser reservado por outra pessoa\"); nada a compensar.",
 								"auth": {
 									"type": "bearer",
 									"bearer": [
@@ -4982,7 +4982,7 @@
 								"method": "GET",
 								"header": [],
 								"url": "{{salesUrl}}/purchases?page=0&size=20",
-								"description": "**UC-13**. Deve aparecer: na lista da Ana, a compra deste veículo com `status: REJECTED` e `closedReason: VEHICLE_UNAVAILABLE`.",
+								"description": "Deve aparecer: na lista da Ana, a compra deste veículo com `status: REJECTED` e `closedReason: VEHICLE_UNAVAILABLE`.",
 								"auth": {
 									"type": "bearer",
 									"bearer": [
@@ -5017,7 +5017,7 @@
 								"method": "POST",
 								"header": [],
 								"url": "{{salesUrl}}/purchases/{{otherPurchaseId}}/cancellation",
-								"description": "**UC-11** · `CUSTOMER` (duda.cliente). Limpa o cenário. Deve aparecer: `200` com `status: CANCELLED`.",
+								"description": "`CUSTOMER` (duda.cliente). Limpa o cenário. Deve aparecer: `200` com `status: CANCELLED`.",
 								"auth": {
 									"type": "bearer",
 									"bearer": [
@@ -5036,7 +5036,7 @@
 				},
 				{
 					"name": "06.2 · Uma compra ativa por cliente e desistência antes de pagar",
-					"description": "RN-10: no máximo uma compra ativa (`PENDING`, `RESERVED`, `AWAITING_PAYMENT`) por cliente — ninguém prende o estoque. Depois, a desistência antes de pagar: cobrança cancelada e veículo liberado (RN-13).",
+					"description": "No máximo uma compra ativa (`PENDING`, `RESERVED`, `AWAITING_PAYMENT`) por cliente — ninguém prende o estoque. Depois, a desistência antes de pagar: cobrança cancelada e veículo liberado.",
 					"item": [
 						{
 							"name": "Vendedora cadastra o veículo do cenário",
@@ -5109,7 +5109,7 @@
 									}
 								],
 								"url": "{{vehiclesUrl}}/vehicles",
-								"description": "**UC-01** · `SELLER` (vera.vendedora). Um veículo novo, com placa, chassi e RENAVAM gerados, só para este cenário. Deve aparecer: `201` com `status: AVAILABLE`; o id vai para `vehicleId`.",
+								"description": "`SELLER` (vera.vendedora). Um veículo novo, com placa, chassi e RENAVAM gerados, só para este cenário. Deve aparecer: `201` com `status: AVAILABLE`; o id vai para `vehicleId`.",
 								"auth": {
 									"type": "bearer",
 									"bearer": [
@@ -5204,7 +5204,7 @@
 									}
 								],
 								"url": "{{vehiclesUrl}}/vehicles",
-								"description": "**UC-01** · `SELLER` (vera.vendedora). Um veículo novo, com placa, chassi e RENAVAM gerados, só para este cenário. Deve aparecer: `201` com `status: AVAILABLE`; o id vai para `secondVehicleId`.",
+								"description": "`SELLER` (vera.vendedora). Um veículo novo, com placa, chassi e RENAVAM gerados, só para este cenário. Deve aparecer: `201` com `status: AVAILABLE`; o id vai para `secondVehicleId`.",
 								"auth": {
 									"type": "bearer",
 									"bearer": [
@@ -5268,7 +5268,7 @@
 									}
 								],
 								"url": "{{salesUrl}}/purchases",
-								"description": "**UC-08** · `CUSTOMER` (ana.cliente). Reserva o veículo e recebe o código Pix numa chamada só (DP-02). Deve aparecer: `201` com `status: AWAITING_PAYMENT`, o preço do veículo e o código com vencimento.",
+								"description": "`CUSTOMER` (ana.cliente). Reserva o veículo e recebe o código Pix numa chamada só. Deve aparecer: `201` com `status: AWAITING_PAYMENT`, o preço do veículo e o código com vencimento.",
 								"auth": {
 									"type": "bearer",
 									"bearer": [
@@ -5365,7 +5365,7 @@
 								"method": "POST",
 								"header": [],
 								"url": "{{salesUrl}}/purchases/{{purchaseId}}/cancellation",
-								"description": "RN-15. Deve aparecer: `404 NOT_FOUND`.",
+								"description": "Compra de outro cliente responde como se não existisse. Deve aparecer: `404 NOT_FOUND`.",
 								"auth": {
 									"type": "bearer",
 									"bearer": [
@@ -5403,7 +5403,7 @@
 								"method": "POST",
 								"header": [],
 								"url": "{{salesUrl}}/purchases/{{purchaseId}}/cancellation",
-								"description": "**UC-11** · `CUSTOMER`. Compensação: `CancelCharge` + `ReleaseVehicle` pelo outbox. Deve aparecer: `200` com `status: CANCELLED`, `closedReason: CUSTOMER_GAVE_UP` e `payment.status: CANCELLED`.",
+								"description": "`CUSTOMER`. Compensação: `CancelCharge` + `ReleaseVehicle` pelo outbox. Deve aparecer: `200` com `status: CANCELLED`, `closedReason: CUSTOMER_GAVE_UP` e `payment.status: CANCELLED`.",
 								"auth": {
 									"type": "bearer",
 									"bearer": [
@@ -5555,7 +5555,7 @@
 				},
 				{
 					"name": "06.3 · Desistência depois de pagar",
-					"description": "A Ana paga e desiste antes de retirar: estorno integral e o veículo volta de `SOLD` para `AVAILABLE` (RN-13). O estorno se confirma pelo webhook `CHARGE_REFUNDED`.",
+					"description": "A Ana paga e desiste antes de retirar: estorno integral e o veículo volta de `SOLD` para `AVAILABLE`. O estorno se confirma pelo webhook `CHARGE_REFUNDED`.",
 					"item": [
 						{
 							"name": "Vendedora cadastra o veículo do cenário",
@@ -5628,7 +5628,7 @@
 									}
 								],
 								"url": "{{vehiclesUrl}}/vehicles",
-								"description": "**UC-01** · `SELLER` (vera.vendedora). Um veículo novo, com placa, chassi e RENAVAM gerados, só para este cenário. Deve aparecer: `201` com `status: AVAILABLE`; o id vai para `vehicleId`.",
+								"description": "`SELLER` (vera.vendedora). Um veículo novo, com placa, chassi e RENAVAM gerados, só para este cenário. Deve aparecer: `201` com `status: AVAILABLE`; o id vai para `vehicleId`.",
 								"auth": {
 									"type": "bearer",
 									"bearer": [
@@ -5692,7 +5692,7 @@
 									}
 								],
 								"url": "{{salesUrl}}/purchases",
-								"description": "**UC-08** · `CUSTOMER` (ana.cliente). Reserva o veículo e recebe o código Pix numa chamada só (DP-02). Deve aparecer: `201` com `status: AWAITING_PAYMENT`, o preço do veículo e o código com vencimento.",
+								"description": "`CUSTOMER` (ana.cliente). Reserva o veículo e recebe o código Pix numa chamada só. Deve aparecer: `201` com `status: AWAITING_PAYMENT`, o preço do veículo e o código com vencimento.",
 								"auth": {
 									"type": "bearer",
 									"bearer": [
@@ -5943,7 +5943,7 @@
 								"method": "POST",
 								"header": [],
 								"url": "{{salesUrl}}/purchases/{{purchaseId}}/cancellation",
-								"description": "**UC-11** · `CUSTOMER`. Compensação: `RefundCharge` + `ReleaseVehicle`. Deve aparecer: `200` com `status: CANCELLED` e `payment.status: REFUND_REQUESTED` (ou já `REFUNDED`).",
+								"description": "`CUSTOMER`. Compensação: `RefundCharge` + `ReleaseVehicle`. Deve aparecer: `200` com `status: CANCELLED` e `payment.status: REFUND_REQUESTED` (ou já `REFUNDED`).",
 								"auth": {
 									"type": "bearer",
 									"bearer": [
@@ -6098,7 +6098,7 @@
 				},
 				{
 					"name": "06.4 · Pagamento com valor errado",
-					"description": "O gateway avisa um pagamento com valor diferente do cobrado: não confirma a compra — estorna, libera o veículo e a compra fica `FAILED` (`PAYMENT_MISMATCH`, RN-12).",
+					"description": "O gateway avisa um pagamento com valor diferente do cobrado: não confirma a compra — estorna, libera o veículo e a compra fica `FAILED` (`PAYMENT_MISMATCH`).",
 					"item": [
 						{
 							"name": "Vendedora cadastra o veículo do cenário",
@@ -6171,7 +6171,7 @@
 									}
 								],
 								"url": "{{vehiclesUrl}}/vehicles",
-								"description": "**UC-01** · `SELLER` (vera.vendedora). Um veículo novo, com placa, chassi e RENAVAM gerados, só para este cenário. Deve aparecer: `201` com `status: AVAILABLE`; o id vai para `vehicleId`.",
+								"description": "`SELLER` (vera.vendedora). Um veículo novo, com placa, chassi e RENAVAM gerados, só para este cenário. Deve aparecer: `201` com `status: AVAILABLE`; o id vai para `vehicleId`.",
 								"auth": {
 									"type": "bearer",
 									"bearer": [
@@ -6235,7 +6235,7 @@
 									}
 								],
 								"url": "{{salesUrl}}/purchases",
-								"description": "**UC-08** · `CUSTOMER` (ana.cliente). Reserva o veículo e recebe o código Pix numa chamada só (DP-02). Deve aparecer: `201` com `status: AWAITING_PAYMENT`, o preço do veículo e o código com vencimento.",
+								"description": "`CUSTOMER` (ana.cliente). Reserva o veículo e recebe o código Pix numa chamada só. Deve aparecer: `201` com `status: AWAITING_PAYMENT`, o preço do veículo e o código com vencimento.",
 								"auth": {
 									"type": "bearer",
 									"bearer": [
@@ -6536,7 +6536,7 @@
 									}
 								],
 								"url": "{{vehiclesUrl}}/vehicles",
-								"description": "**UC-01** · `SELLER` (vera.vendedora). Um veículo novo, com placa, chassi e RENAVAM gerados, só para este cenário. Deve aparecer: `201` com `status: AVAILABLE`; o id vai para `vehicleId`.",
+								"description": "`SELLER` (vera.vendedora). Um veículo novo, com placa, chassi e RENAVAM gerados, só para este cenário. Deve aparecer: `201` com `status: AVAILABLE`; o id vai para `vehicleId`.",
 								"auth": {
 									"type": "bearer",
 									"bearer": [
@@ -6600,7 +6600,7 @@
 									}
 								],
 								"url": "{{salesUrl}}/purchases",
-								"description": "**UC-08** · `CUSTOMER` (ana.cliente). Reserva o veículo e recebe o código Pix numa chamada só (DP-02). Deve aparecer: `201` com `status: AWAITING_PAYMENT`, o preço do veículo e o código com vencimento.",
+								"description": "`CUSTOMER` (ana.cliente). Reserva o veículo e recebe o código Pix numa chamada só. Deve aparecer: `201` com `status: AWAITING_PAYMENT`, o preço do veículo e o código com vencimento.",
 								"auth": {
 									"type": "bearer",
 									"bearer": [
@@ -6829,7 +6829,7 @@
 				},
 				{
 					"name": "06.6 · Cadastro exigido, maioridade e papel",
-					"description": "RN-05: só compra quem tem cadastro completo e 18 anos ou mais. A elegibilidade vem do `customers` antes de qualquer reserva — nada fica preso.",
+					"description": "Só compra quem tem cadastro completo e 18 anos ou mais. A elegibilidade vem do `customers` antes de qualquer reserva — nada fica preso.",
 					"item": [
 						{
 							"name": "Vendedora cadastra o veículo do cenário",
@@ -6902,7 +6902,7 @@
 									}
 								],
 								"url": "{{vehiclesUrl}}/vehicles",
-								"description": "**UC-01** · `SELLER` (vera.vendedora). Um veículo novo, com placa, chassi e RENAVAM gerados, só para este cenário. Deve aparecer: `201` com `status: AVAILABLE`; o id vai para `vehicleId`.",
+								"description": "`SELLER` (vera.vendedora). Um veículo novo, com placa, chassi e RENAVAM gerados, só para este cenário. Deve aparecer: `201` com `status: AVAILABLE`; o id vai para `vehicleId`.",
 								"auth": {
 									"type": "bearer",
 									"bearer": [
@@ -7283,7 +7283,7 @@
 				},
 				{
 					"name": "06.8 · Pagamento não feito: expiração e pagamento atrasado",
-					"description": "O prazo de pagamento vence sem pagamento: a varredura (a cada 30 s) expira a compra, cancela a cobrança e libera o veículo (RN-11). Depois, o gateway avisa um pagamento atrasado: é estornado e a compra **não** revive (RN-12).\n\n**Para ver a expiração, suba o `sales` com `PAYMENT_WINDOW=PT1M`** — o padrão é 30 minutos. Com o prazo longo, a pasta desiste da compra para não travar as seguintes, e a última requisição confere essa desistência.",
+					"description": "O prazo de pagamento vence sem pagamento: a varredura (a cada 30 s) expira a compra, cancela a cobrança e libera o veículo. Depois, o gateway avisa um pagamento atrasado: é estornado e a compra **não** revive.\n\n**Para ver a expiração, suba o `sales` com `PAYMENT_WINDOW=PT1M`** — o padrão é 30 minutos. Com o prazo longo, a pasta desiste da compra para não travar as seguintes, e a última requisição confere essa desistência.",
 					"item": [
 						{
 							"name": "Vendedora cadastra o veículo do cenário",
@@ -7356,7 +7356,7 @@
 									}
 								],
 								"url": "{{vehiclesUrl}}/vehicles",
-								"description": "**UC-01** · `SELLER` (vera.vendedora). Um veículo novo, com placa, chassi e RENAVAM gerados, só para este cenário. Deve aparecer: `201` com `status: AVAILABLE`; o id vai para `vehicleId`.",
+								"description": "`SELLER` (vera.vendedora). Um veículo novo, com placa, chassi e RENAVAM gerados, só para este cenário. Deve aparecer: `201` com `status: AVAILABLE`; o id vai para `vehicleId`.",
 								"auth": {
 									"type": "bearer",
 									"bearer": [
@@ -7420,7 +7420,7 @@
 									}
 								],
 								"url": "{{salesUrl}}/purchases",
-								"description": "**UC-08** · `CUSTOMER`. Deve aparecer: `201 AWAITING_PAYMENT` com o vencimento em `payment.dueAt`.",
+								"description": "`CUSTOMER`. Deve aparecer: `201 AWAITING_PAYMENT` com o vencimento em `payment.dueAt`.",
 								"auth": {
 									"type": "bearer",
 									"bearer": [
@@ -7541,7 +7541,7 @@
 								"method": "GET",
 								"header": [],
 								"url": "{{salesUrl}}/purchases/{{purchaseId}}",
-								"description": "**UC-10** · sistema. A consulta se repete até o vencimento mais a varredura (cerca de 1 min 30 s com `PAYMENT_WINDOW=PT1M`). Deve aparecer: `status: EXPIRED`, `closedReason: PAYMENT_EXPIRED` e `payment.status: CANCELLED`. Com prazo maior que 2 minutos, o teste é pulado e o Runner vai direto para a última requisição, que desiste da compra.",
+								"description": "Sistema. A consulta se repete até o vencimento mais a varredura (cerca de 1 min 30 s com `PAYMENT_WINDOW=PT1M`). Deve aparecer: `status: EXPIRED`, `closedReason: PAYMENT_EXPIRED` e `payment.status: CANCELLED`. Com prazo maior que 2 minutos, o teste é pulado e o Runner vai direto para a última requisição, que desiste da compra.",
 								"auth": {
 									"type": "bearer",
 									"bearer": [
@@ -7689,7 +7689,7 @@
 								"method": "GET",
 								"header": [],
 								"url": "{{salesUrl}}/purchases/{{purchaseId}}",
-								"description": "RN-12. Deve aparecer: a compra continua `EXPIRED` e `payment.status` vai a `REFUNDED` (passando por `REFUND_REQUESTED`).",
+								"description": "O pagamento atrasado não revive a compra. Deve aparecer: a compra continua `EXPIRED` e `payment.status` vai a `REFUNDED` (passando por `REFUND_REQUESTED`).",
 								"auth": {
 									"type": "bearer",
 									"bearer": [
@@ -7752,7 +7752,7 @@
 		},
 		{
 			"name": "07 · Equipe (vendedora e admin)",
-			"description": "UC-14 e a visão da equipe sobre as compras (UC-13). A equipe vê o cliente com CPF e telefone mascarados; só o `ADMIN` revela o CPF, com motivo, e a revelação é auditada (`CUSTOMER_CPF_REVEALED`). Usa o `customerId` da Ana (pasta 04) e a compra concluída (pasta 05).",
+			"description": "O cliente visto pela equipe e a visão da equipe sobre as compras. A equipe vê o cliente com CPF e telefone mascarados; só o `ADMIN` revela o CPF, com motivo, e a revelação é auditada (`CUSTOMER_CPF_REVEALED`). Usa o `customerId` da Ana (pasta 04) e a compra concluída (pasta 05).",
 			"item": [
 				{
 					"name": "Vendedora vê o cliente mascarado",
@@ -7786,7 +7786,7 @@
 						"method": "GET",
 						"header": [],
 						"url": "{{customersUrl}}/customers/{{customerId}}",
-						"description": "**UC-14** · `SELLER`. O mínimo para atender: nome, CPF, e-mail e telefone mascarados, cidade e UF; sem nascimento nem o resto do endereço. Não grava auditoria (nada sai completo). Deve aparecer: `200` com `cpfMasked` (`***.xxx.xxx-**`) e nenhum CPF em claro.",
+						"description": "`SELLER`. O mínimo para atender: nome, CPF, e-mail e telefone mascarados, cidade e UF; sem nascimento nem o resto do endereço. Não grava auditoria (nada sai completo). Deve aparecer: `200` com `cpfMasked` (`***.xxx.xxx-**`) e nenhum CPF em claro.",
 						"auth": {
 							"type": "bearer",
 							"bearer": [
@@ -7827,7 +7827,7 @@
 						"method": "GET",
 						"header": [],
 						"url": "{{customersUrl}}/customers/{{customerId}}",
-						"description": "**UC-14** · `ADMIN` (tem tudo do `SELLER`). Deve aparecer: `200`, mascarado como para a vendedora.",
+						"description": "`ADMIN` (tem tudo do `SELLER`). Deve aparecer: `200`, mascarado como para a vendedora.",
 						"auth": {
 							"type": "bearer",
 							"bearer": [
@@ -8099,7 +8099,7 @@
 							}
 						],
 						"url": "{{customersUrl}}/customers/{{customerId}}/cpf-reveal",
-						"description": "**UC-14** · `ADMIN` (otto.admin). Deve aparecer: `200` com o CPF completo da Ana, só dígitos, e `Cache-Control: no-store`. Cada revelação vai para a auditoria com quem pediu e o motivo (`CUSTOMER_CPF_REVEALED`) e soma um na métrica `customers.cpf.reveals`.",
+						"description": "`ADMIN` (otto.admin). Deve aparecer: `200` com o CPF completo da Ana, só dígitos, e `Cache-Control: no-store`. Cada revelação vai para a auditoria com quem pediu e o motivo (`CUSTOMER_CPF_REVEALED`) e soma um na métrica `customers.cpf.reveals`.",
 						"auth": {
 							"type": "bearer",
 							"bearer": [
@@ -8151,7 +8151,7 @@
 						"method": "GET",
 						"header": [],
 						"url": "{{salesUrl}}/purchases?status=COMPLETED&page=0&size=100",
-						"description": "**UC-13** · `SELLER` vê todas as compras, com filtro `status`. Deve aparecer: só `COMPLETED`, com a compra da pasta 05.",
+						"description": "`SELLER` vê todas as compras, com filtro `status`. Deve aparecer: só `COMPLETED`, com a compra da pasta 05.",
 						"auth": {
 							"type": "bearer",
 							"bearer": [
@@ -8229,7 +8229,7 @@
 						"method": "GET",
 						"header": [],
 						"url": "{{salesUrl}}/purchases?page=0&size=20",
-						"description": "`ADMIN` herda a listagem do `SELLER` (D-17). Deve aparecer: `200` com a página.",
+						"description": "`ADMIN` herda a listagem do `SELLER`. Deve aparecer: `200` com a página.",
 						"auth": {
 							"type": "bearer",
 							"bearer": [
@@ -8248,7 +8248,7 @@
 		},
 		{
 			"name": "08 · LGPD (titular)",
-			"description": "UC-15, direitos do titular (art. 18): acesso e portabilidade por `GET /customers/me/export`; eliminação por `POST /customers/me/deletion`, que anonimiza já ou, se há venda no prazo legal de retenção, agenda a anonimização para o fim do prazo. A Ana tem uma compra concluída (pasta 05), então o pedido dela fica agendado — e a coleção continua rodando nas próximas vezes.",
+			"description": "Direitos do titular (art. 18): acesso e portabilidade por `GET /customers/me/export`; eliminação por `POST /customers/me/deletion`, que anonimiza já ou, se há venda no prazo legal de retenção, agenda a anonimização para o fim do prazo. A Ana tem uma compra concluída (pasta 05), então o pedido dela fica agendado — e a coleção continua rodando nas próximas vezes.",
 			"item": [
 				{
 					"name": "Ana exporta os próprios dados",
@@ -8272,7 +8272,7 @@
 						"method": "GET",
 						"header": [],
 						"url": "{{customersUrl}}/customers/me/export",
-						"description": "**UC-15** · `CUSTOMER`. Deve aparecer: `200` com um JSON de tudo o que existe sobre ela.",
+						"description": "`CUSTOMER`. Deve aparecer: `200` com um JSON de tudo o que existe sobre ela.",
 						"auth": {
 							"type": "bearer",
 							"bearer": [
@@ -8378,7 +8378,7 @@
 						"method": "POST",
 						"header": [],
 						"url": "{{customersUrl}}/customers/me/deletion",
-						"description": "**UC-15** · `CUSTOMER`. Pergunta ao `sales` até quando guardar os dados: com venda dentro do prazo legal de retenção (5 anos depois da venda), os dados ficam até o fim do prazo e o job de retenção anonimiza nessa data. Deve aparecer: `409 CUSTOMER_HAS_RETAINED_DATA`, com a data na `message`. Repetir não muda nada. (Sem venda no prazo, o cadastro é anonimizado na hora, `200 { status: ANONYMIZED }` — coberto pelos testes automatizados do `customers`.)",
+						"description": "`CUSTOMER`. Pergunta ao `sales` até quando guardar os dados: com venda dentro do prazo legal de retenção (5 anos depois da venda), os dados ficam até o fim do prazo e o job de retenção anonimiza nessa data. Deve aparecer: `409 CUSTOMER_HAS_RETAINED_DATA`, com a data na `message`. Repetir não muda nada. (Sem venda no prazo, o cadastro é anonimizado na hora, `200 { status: ANONYMIZED }` — coberto pelos testes automatizados do `customers`.)",
 						"auth": {
 							"type": "bearer",
 							"bearer": [
@@ -8416,7 +8416,7 @@
 						"method": "GET",
 						"header": [],
 						"url": "{{customersUrl}}/customers/me/export",
-						"description": "**UC-15**. O pedido de exclusão agendado fica no cadastro e na auditoria. Deve aparecer: `200` com `customer.deletionRequestedAt` preenchido e `CUSTOMER_DELETION_REQUESTED` no `history`, sem a identidade de quem fez.",
+						"description": "O pedido de exclusão agendado fica no cadastro e na auditoria. Deve aparecer: `200` com `customer.deletionRequestedAt` preenchido e `CUSTOMER_DELETION_REQUESTED` no `history`, sem a identidade de quem fez.",
 						"auth": {
 							"type": "bearer",
 							"bearer": [
@@ -8881,7 +8881,7 @@
 							}
 						],
 						"url": "{{gatewayUrl}}/charges/{{gatewayChargeId}}/simulate",
-						"description": "A simulação paga também a cobrança cancelada: é o Pix que chega depois do prazo (RN-12). Deve aparecer: `202` com `eventId` (`evt_…`), `type: CHARGE_PAID`, o valor e `deliveries: 1`. O webhook vai ao `sales` depois da resposta, assinado (`X-Signature: t=…,v1=…`).",
+						"description": "A simulação paga também a cobrança cancelada: é o Pix que chega depois do prazo. Deve aparecer: `202` com `eventId` (`evt_…`), `type: CHARGE_PAID`, o valor e `deliveries: 1`. O webhook vai ao `sales` depois da resposta, assinado (`X-Signature: t=…,v1=…`).",
 						"body": {
 							"mode": "raw",
 							"raw": "{\n  \"outcome\": \"PAID\",\n  \"deliveries\": 1\n}",
@@ -9132,7 +9132,7 @@
 							}
 						],
 						"url": "{{vehiclesUrl}}/vehicles",
-						"description": "**UC-01** · `SELLER` (vera.vendedora). Um veículo novo, com placa, chassi e RENAVAM gerados, só para este cenário. Deve aparecer: `201` com `status: AVAILABLE`; o id vai para `vehicleId`.",
+						"description": "`SELLER` (vera.vendedora). Um veículo novo, com placa, chassi e RENAVAM gerados, só para este cenário. Deve aparecer: `201` com `status: AVAILABLE`; o id vai para `vehicleId`.",
 						"auth": {
 							"type": "bearer",
 							"bearer": [
@@ -9190,7 +9190,7 @@
 							}
 						],
 						"url": "{{vehiclesUrl}}/internal/vehicles/{{vehicleId}}/reservations",
-						"description": "*Scope* `vehicles.reserve` (`sales-service`). A reserva condicional que o passo 2 da saga usa; devolve o preço do momento (RN-09). Deve aparecer: `200 { priceCents }`. O veículo fica preso a esta compra fictícia, que só existe neste teste.",
+						"description": "*Scope* `vehicles.reserve` (`sales-service`). A reserva condicional que o passo 2 da saga usa; devolve o preço do momento. Deve aparecer: `200 { priceCents }`. O veículo fica preso a esta compra fictícia, que só existe neste teste.",
 						"body": {
 							"mode": "raw",
 							"raw": "{\n  \"purchaseId\": \"{{internalPurchaseId}}\"\n}",
@@ -9354,7 +9354,7 @@
 						"method": "GET",
 						"header": [],
 						"url": "{{vehiclesUrl}}/internal/vehicles/{{vehicleId}}",
-						"description": "*Scope* `vehicles.read` (`sales-service`, D-36). O veículo como a equipe vê, em qualquer status — placa, chassi, RENAVAM, cor e anos vão para o documento de transferência. Só leitura, sem auditoria. Deve aparecer: `200` com `plate`, `vin`, `renavam` e `status: RESERVED` (a reserva acima)."
+						"description": "*Scope* `vehicles.read` (`sales-service`). O veículo como a equipe vê, em qualquer status — placa, chassi, RENAVAM, cor e anos vão para o documento de transferência. Só leitura, sem auditoria. Deve aparecer: `200` com `plate`, `vin`, `renavam` e `status: RESERVED` (a reserva acima)."
 					},
 					"response": [],
 					"id": "61577d6b-9626-58fc-a906-7d33cdc0accf"
@@ -9418,7 +9418,7 @@
 						"method": "GET",
 						"header": [],
 						"url": "{{customersUrl}}/internal/customers/by-subject/{{anaSubject}}/eligibility",
-						"description": "*Scope* `customers.read-payer`. O primeiro passo da compra (RN-05): cadastro ativo e 18 anos ou mais na data da compra, em `America/Sao_Paulo`. O `sub` na URL é o pseudônimo do provedor de identidade, não dado de contato; a resposta não tem nada pessoal e a consulta não é auditada. Deve aparecer: `200 { customerId, eligible: true, reason: null }`."
+						"description": "*Scope* `customers.read-payer`. O primeiro passo da compra: cadastro ativo e 18 anos ou mais na data da compra, em `America/Sao_Paulo`. O `sub` na URL é o pseudônimo do provedor de identidade, não dado de contato; a resposta não tem nada pessoal e a consulta não é auditada. Deve aparecer: `200 { customerId, eligible: true, reason: null }`."
 					},
 					"response": [],
 					"id": "d5d48f42-e832-508b-bfa5-16063f2c630f"

@@ -20,7 +20,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 
 /**
- * UC-10: a varredura dos prazos — pagamento não feito, pagamento atrasado, queda no meio do caminho síncrono e a corrida
+ * A varredura dos prazos — pagamento não feito, pagamento atrasado, queda no meio do caminho síncrono e a corrida
  * entre o prazo e o pagamento.
  */
 class PurchaseSweepTests extends SalesApiTest {

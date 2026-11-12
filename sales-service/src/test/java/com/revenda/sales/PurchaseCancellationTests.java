@@ -12,7 +12,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import tools.jackson.databind.JsonNode;
 
-/** UC-11 (RN-13): a desistência antes e depois de pagar, fora de hora, de outro cliente e junto do pagamento. */
+/** A desistência antes e depois de pagar, fora de hora, de outro cliente e junto do pagamento. */
 class PurchaseCancellationTests extends SalesApiTest {
 
     @Test

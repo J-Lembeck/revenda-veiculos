@@ -15,7 +15,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import tools.jackson.databind.JsonNode;
 
-/** UC-09: o webhook assinado do gateway — assinatura, carimbo, repetição, valor e pagamento atrasado. */
+/** O webhook assinado do gateway — assinatura, carimbo, repetição, valor e pagamento atrasado. */
 class PaymentWebhookTests extends SalesApiTest {
 
     private static final long PRICE = FakeNeighbors.DEFAULT_PRICE_CENTS;

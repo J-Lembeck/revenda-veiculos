@@ -4,7 +4,7 @@ import com.revenda.common.error.BusinessException;
 import java.util.UUID;
 
 /**
- * Se a conta pode comprar (RN-05), como o cadastro respondeu: o id do cadastro e, se não pode, o motivo. Nada
+ * Se a conta pode comprar, como o cadastro respondeu: o id do cadastro e, se não pode, o motivo. Nada
  * pessoal.
  */
 public record Eligibility(UUID customerId, boolean eligible, Reason reason) {

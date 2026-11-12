@@ -11,7 +11,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import tools.jackson.databind.JsonNode;
 
-/** UC-15, acesso e portabilidade: o titular leva o cadastro e o histórico de quem acessou o dado. */
+/** Acesso e portabilidade: o titular leva o cadastro e o histórico de quem acessou o dado. */
 class CustomerExportTests extends CustomersApiTest {
 
     private static final String EXPORT = ME + "/export";

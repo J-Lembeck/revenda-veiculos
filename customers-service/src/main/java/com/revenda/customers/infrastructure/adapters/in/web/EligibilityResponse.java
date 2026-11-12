@@ -5,7 +5,7 @@ import com.revenda.customers.domain.model.IneligibilityReason;
 import io.swagger.v3.oas.annotations.media.Schema;
 import java.util.UUID;
 
-@Schema(description = "Se a conta pode comprar (RN-05). Nada pessoal: só o id do cadastro e o motivo.")
+@Schema(description = "Se a conta pode comprar. Nada pessoal: só o id do cadastro e o motivo.")
 record EligibilityResponse(
         @Schema(description = "Id do cadastro; nulo quando a conta não tem cadastro", nullable = true,
                 example = "3f2b8c4e-1a7d-4e9b-8c2f-6d5a4b3c2e10")

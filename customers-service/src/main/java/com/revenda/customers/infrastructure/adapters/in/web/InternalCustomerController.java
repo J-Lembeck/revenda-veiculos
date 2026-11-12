@@ -47,7 +47,7 @@ class InternalCustomerController {
     private final CheckCpfUseCase checkCpf;
 
     @Operation(summary = "Elegibilidade da conta para comprar", description = "Primeiro passo da compra, antes de ela "
-            + "existir (RN-05): cadastro ativo e 18 anos ou mais na data da compra, contada no fuso da revenda "
+            + "existir: cadastro ativo e 18 anos ou mais na data da compra, contada no fuso da revenda "
             + "(`America/Sao_Paulo`) — a maioridade começa no dia do aniversário. Conta sem cadastro → `eligible: false` "
             + "com `PROFILE_MISSING`; menor de idade → `UNDERAGE`. O `sub` é o pseudônimo do provedor de identidade. "
             + "Nada pessoal na resposta, e a consulta não é auditada.")

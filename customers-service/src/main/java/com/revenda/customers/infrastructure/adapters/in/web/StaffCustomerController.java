@@ -29,7 +29,7 @@ class StaffCustomerController {
     private final ViewCustomerUseCase viewCustomer;
     private final RevealCpfUseCase revealCpf;
 
-    @Operation(summary = "Ver o cliente", description = "UC-14. O mínimo para atender: nome, CPF, e-mail e telefone "
+    @Operation(summary = "Ver o cliente", description = "O mínimo para atender: nome, CPF, e-mail e telefone "
             + "mascarados, cidade e UF; sem nascimento nem o resto do endereço. Leitura sem auditoria, porque nada sai "
             + "completo — o CPF completo é a revelação.")
     @ApiResponse(responseCode = "200", description = "O cliente, mascarado.")
@@ -40,7 +40,7 @@ class StaffCustomerController {
         return StaffCustomerResponse.of(viewCustomer.view(id));
     }
 
-    @Operation(summary = "Revelar o CPF completo", description = "UC-14, regra do CPF mascarado por padrão. Só o "
+    @Operation(summary = "Revelar o CPF completo", description = "Regra do CPF mascarado por padrão. Só o "
             + "administrador, com o motivo escrito; cada revelação grava a auditoria `CUSTOMER_CPF_REVEALED` com quem "
             + "pediu e o motivo, e conta na métrica `customers.cpf.reveals`, a do alarme de volume. A resposta não vai "
             + "para cache. Não cria nada: sem `Idempotency-Key`.")

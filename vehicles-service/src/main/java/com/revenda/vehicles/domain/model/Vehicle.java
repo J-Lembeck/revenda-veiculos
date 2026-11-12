@@ -26,7 +26,7 @@ public record Vehicle(
         return new Vehicle(id, details, VehicleStatus.AVAILABLE, null, null, null, null, 0, now, now);
     }
 
-    /** À venda: o único estado que o público vê (RN-03). */
+    /** À venda: o único estado que o público vê. */
     public boolean isForSale() {
         return status == VehicleStatus.AVAILABLE;
     }
@@ -47,7 +47,7 @@ public record Vehicle(
     }
 
     /**
-     * Os dados novos na versão seguinte, sem tocar no status nem na compra (RN-02): só à venda ou reservado, e só a
+     * Os dados novos na versão seguinte, sem tocar no status nem na compra: só à venda ou reservado, e só a
      * partir da versão que está no estoque.
      */
     public Vehicle edit(VehicleDetails newDetails, int readVersion, Instant now) {

@@ -51,7 +51,7 @@ class CustomerApiDocsTests extends CustomersApiTest {
             assertThat(internal.get("parameters").valueStream().map(parameter -> parameter.get("name").asString()))
                     .doesNotContain("Idempotency-Key");
         }
-        assertThat(eligibility.get("description").asString()).contains("RN-05", "PROFILE_MISSING", "UNDERAGE",
+        assertThat(eligibility.get("description").asString()).contains("PROFILE_MISSING", "UNDERAGE",
                 "America/Sao_Paulo");
         assertThat(docs.at("/components/schemas/EligibilityResponse/properties").propertyNames())
                 .containsExactlyInAnyOrder("customerId", "eligible", "reason");
@@ -80,11 +80,11 @@ class CustomerApiDocsTests extends CustomersApiTest {
         JsonNode view = operation("/customers/{id}", "get");
         JsonNode reveal = operation("/customers/{id}/cpf-reveal", "post");
 
-        assertThat(view.get("description").asString()).contains("UC-14", "Papéis: SELLER");
+        assertThat(view.get("description").asString()).contains("Papéis: SELLER");
         assertThat(view.get("responses").propertyNames()).contains("200", "400", "401", "403", "404", "500");
         assertThat(view.at("/responses/200/content/application~1json/schema/$ref").asString())
                 .endsWith("/StaffCustomerResponse");
-        assertThat(reveal.get("description").asString()).contains("UC-14", "CUSTOMER_CPF_REVEALED", "Papéis: ADMIN")
+        assertThat(reveal.get("description").asString()).contains("CUSTOMER_CPF_REVEALED", "Papéis: ADMIN")
                 .doesNotContain("SELLER");
         assertThat(reveal.get("responses").propertyNames()).contains("200", "400", "401", "403", "404", "500");
         assertThat(reveal.at("/responses/400/description").asString()).contains("REQUIRED", "SIZE_INVALID");
@@ -103,7 +103,7 @@ class CustomerApiDocsTests extends CustomersApiTest {
         JsonNode edit = operation("/customers/me", "patch");
 
         for (JsonNode own : List.of(view, edit)) {
-            assertThat(own.get("description").asString()).contains("UC-07", "Papéis: CUSTOMER");
+            assertThat(own.get("description").asString()).contains("Papéis: CUSTOMER");
             assertThat(own.get("security").toString()).isEqualTo("[{\"oidc\":[]},{\"bearer\":[]}]");
             assertThat(own.at("/responses/404/description").asString()).contains("NOT_FOUND");
             assertThat(own.at("/responses/200/content/application~1json/schema/$ref").asString())

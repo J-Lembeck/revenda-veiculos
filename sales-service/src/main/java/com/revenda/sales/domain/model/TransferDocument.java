@@ -4,7 +4,7 @@ import java.time.Instant;
 import java.util.Objects;
 
 /**
- * O que vai no documento de transferência (DP-06): a compra retirada, o comprador, o veículo e quando foi emitido. Um
+ * O que vai no documento de transferência: a compra retirada, o comprador, o veículo e quando foi emitido. Um
  * PDF simplificado com os campos do ATPV-e; não substitui o documento do Detran.
  */
 public record TransferDocument(Purchase purchase, TransferBuyer buyer, TransferVehicle vehicle, Instant issuedAt) {

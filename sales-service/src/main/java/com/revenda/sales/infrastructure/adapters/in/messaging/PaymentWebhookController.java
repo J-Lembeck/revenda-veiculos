@@ -45,7 +45,7 @@ class PaymentWebhookController {
     private final ReceivePaymentEventUseCase receivePaymentEvent;
     private final ObjectMapper json;
 
-    @Operation(summary = "Aviso de pagamento do gateway", description = "UC-09 (RN-12). O pagamento só se confirma "
+    @Operation(summary = "Aviso de pagamento do gateway", description = "O pagamento só se confirma "
             + "por aqui, nunca por chamada do cliente. `X-Signature: t=<segundos>,v1=<hex>`, com "
             + "`v1 = HMAC-SHA256(segredo, t + \".\" + corpo bruto)` e o carimbo a no máximo 5 minutos do relógio; "
             + "a recusa grava `PAYMENT_WEBHOOK_REJECTED`. O `eventId` repetido responde `200` sem efeito. "

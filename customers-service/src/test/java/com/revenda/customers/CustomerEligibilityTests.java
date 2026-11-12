@@ -28,8 +28,9 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
- * RN-05 na elegibilidade que o {@code sales} pede antes da compra: cadastro ativo e 18 anos ou mais na data civil de
- * São Paulo. Cada teste lê a data no relógio, que só anda para a frente, para não depender da ordem dos testes.
+ * A maioridade na elegibilidade que o {@code sales} pede antes da compra: cadastro ativo e 18 anos ou mais na data
+ * civil de São Paulo. Cada teste lê a data no relógio, que só anda para a frente, para não depender da ordem
+ * dos testes.
  */
 @ExtendWith(OutputCaptureExtension.class)
 class CustomerEligibilityTests extends CustomersApiTest {

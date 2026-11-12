@@ -5,7 +5,7 @@ import java.time.Instant;
 import java.util.Objects;
 import java.util.UUID;
 
-/** {@code soldPrice} é o preço fixado na reserva (RN-09); {@code soldAt}, quando o pagamento foi confirmado. */
+/** {@code soldPrice} é o preço fixado na reserva; {@code soldAt}, quando o pagamento foi confirmado. */
 public record MarkVehicleSoldCommand(UUID messageId, UUID vehicleId, UUID purchaseId, Money soldPrice,
         Instant soldAt) {
 

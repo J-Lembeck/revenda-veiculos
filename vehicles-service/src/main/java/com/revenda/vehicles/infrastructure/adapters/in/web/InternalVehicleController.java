@@ -45,8 +45,8 @@ class InternalVehicleController {
     }
 
     @Operation(summary = "Reservar veículo para uma compra", description = "Passo 2 da compra. Um único `UPDATE` "
-            + "condicional (`WHERE status = 'AVAILABLE'`): de N reservas simultâneas, exatamente uma vence (RN-08). "
-            + "Devolve o preço do momento, que a compra vai cobrar (RN-09). Repetir com a mesma compra enquanto o "
+            + "condicional (`WHERE status = 'AVAILABLE'`): de N reservas simultâneas, exatamente uma vence. "
+            + "Devolve o preço do momento, que a compra vai cobrar. Repetir com a mesma compra enquanto o "
             + "veículo segue reservado por ela devolve `200` sem efeito — a idempotência é pelo `purchaseId`, sem "
             + "`Idempotency-Key`. Grava `VEHICLE_RESERVED` com o serviço, a compra e o preço.")
     @ApiResponse(responseCode = "200", description = "Reservado para a compra (ou já estava).")

@@ -9,7 +9,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import tools.jackson.databind.JsonNode;
 
-/** UC-13: acompanhar compras — o dono vê as próprias, a equipe vê todas, outro cliente recebe {@code 404}. */
+/** Acompanhar compras — o dono vê as próprias, a equipe vê todas, outro cliente recebe {@code 404}. */
 class PurchaseQueryTests extends SalesApiTest {
 
     @Test

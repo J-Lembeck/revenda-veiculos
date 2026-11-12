@@ -5,7 +5,7 @@ import java.util.Optional;
 
 /**
  * O e-mail da conta, vindo do token, quando ele vale para o cadastro: tem usuário e domínio e, com a conferência
- * ligada, foi verificado pelo provedor de identidade (D-28).
+ * ligada, foi verificado pelo provedor de identidade.
  */
 final class AccountEmail {
 

@@ -14,7 +14,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import tools.jackson.databind.JsonNode;
 
-/** UC-15, eliminação: anonimiza na hora sem venda no prazo de guarda; com venda, agenda para o fim do prazo. */
+/** Eliminação: anonimiza na hora sem venda no prazo de guarda; com venda, agenda para o fim do prazo. */
 class CustomerDeletionTests extends CustomersApiTest {
 
     private static final String DELETION = ME + "/deletion";

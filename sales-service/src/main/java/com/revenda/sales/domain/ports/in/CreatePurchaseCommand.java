@@ -3,7 +3,7 @@ package com.revenda.sales.domain.ports.in;
 import java.util.Objects;
 import java.util.UUID;
 
-/** O pedido do cliente: só o veículo. O preço vem da reserva (RN-09); o cliente, do token. */
+/** O pedido do cliente: só o veículo. O preço vem da reserva; o cliente, do token. */
 public record CreatePurchaseCommand(String customerSubject, UUID vehicleId) {
 
     public CreatePurchaseCommand {

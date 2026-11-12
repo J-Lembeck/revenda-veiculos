@@ -4,7 +4,7 @@ import java.time.LocalDate;
 import java.util.UUID;
 
 /**
- * Se a conta pode comprar (RN-05): cadastro ativo e 18 anos ou mais na data da compra. Sem cadastro, não há
+ * Se a conta pode comprar: cadastro ativo e 18 anos ou mais na data da compra. Sem cadastro, não há
  * {@code customerId}; elegível, não há {@code reason}.
  */
 public record Eligibility(UUID customerId, boolean eligible, IneligibilityReason reason) {
