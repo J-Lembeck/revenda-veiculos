@@ -1,0 +1,1286 @@
+{
+	"info": {
+		"_postman_id": "c437ac42-a574-5e1a-a2aa-e128ffa4ec3d",
+		"name": "Revenda de veículos — compra de ponta a ponta",
+		"description": "A compra de um carro do começo ao fim, sem os cenários de erro: a vendedora cadastra o veículo, a cliente se cadastra, reserva e recebe o código Pix, o pagamento é simulado no gateway, a vendedora confirma a retirada com o CPF da cliente, o estoque dá baixa e o documento de transferência é emitido. Os cenários de erro estão na coleção completa, `revenda-veiculos.postman_collection.json`.\n\n**Como usar:**\n1. Suba o sistema com um comando na raiz do repositório: `.\\subir.cmd` no Windows ou `sh subir.sh` no macOS e no Linux.\n2. No **Postman desktop**, importe só esta coleção — não precisa de ambiente: endereços, senhas de desenvolvimento e a chave do gateway simulado já estão nas variáveis da coleção (todos valores só de desenvolvimento local).\n3. **Run collection**: as três pastas rodam em ordem, sozinhas. A pasta 1 entra com a cliente e com a vendedora, os ids passam de uma requisição para a outra e as consultas que esperam o webhook, a fila ou o documento se repetem por até 20 s.\n\nPode rodar de novo quantas vezes quiser: cada execução entra de novo e cadastra um veículo novo. Também dá para mandar requisição por requisição (**Send**), de cima para baixo.",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "1 · Entrar",
+			"description": "Login da cliente que compra (`ana.cliente`) e da vendedora que cadastra o carro e confirma a retirada (`vera.vendedora`), direto no Keycloak local, sem janela. Os tokens vão para as variáveis da coleção.",
+			"item": [
+				{
+					"name": "Entrar — ana.cliente (CUSTOMER)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"const jwtClaims = (token) => {",
+									"    const cryptoJs = require('crypto-js');",
+									"    const part = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');",
+									"    const padded = part + '='.repeat((4 - (part.length % 4)) % 4);",
+									"    return JSON.parse(cryptoJs.enc.Base64.parse(padded).toString(cryptoJs.enc.Utf8));",
+									"};",
+									"pm.test('o Keycloak devolve o token (200)', () => pm.response.to.have.status(200));",
+									"const token = pm.response.code === 200 ? pm.response.json().access_token : '';",
+									"let claims = null;",
+									"pm.test(\"token de acesso de ana.cliente@example.test com o papel CUSTOMER\", () => {",
+									"    pm.expect(token, 'access_token').to.be.a('string').and.not.empty;",
+									"    claims = jwtClaims(token);",
+									"    pm.expect(claims.typ, 'token de acesso, não ID token').to.eql('Bearer');",
+									"    pm.expect(claims.azp, 'cliente do Postman').to.eql(pm.variables.get('postmanClientId'));",
+									"    pm.expect(claims.email).to.eql('ana.cliente@example.test');",
+									"    pm.expect(claims.realm_access.roles).to.include('CUSTOMER');",
+									"});",
+									"if (claims && claims.email === 'ana.cliente@example.test') {",
+									"    pm.collectionVariables.set('tokenAna', token);",
+									"    if (pm.environment.name) pm.environment.set('tokenAna', token);",
+									"    pm.collectionVariables.set('anaSubject', claims.sub);",
+									"}"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": "{{keycloakUrl}}/realms/{{realm}}/protocol/openid-connect/token",
+						"description": "**cliente com cadastro — compra em todos os cenários.**\n\nEntra sozinho, sem janela: usuário e senha de desenvolvimento (`anaPassword`, a mesma do `infra/keycloak/realm.json`) no cliente `revenda-postman`, que só existe no Keycloak local. Na nuvem, o login é sempre pela tela do Cognito, com MFA para a equipe.\n\nDeve aparecer: `200` com o token de acesso, que vai para a variável `tokenAna`. O token vale 15 minutos; venceu (`401` nas outras requisições), mande esta de novo.",
+						"body": {
+							"mode": "urlencoded",
+							"urlencoded": [
+								{
+									"key": "grant_type",
+									"value": "password",
+									"type": "text"
+								},
+								{
+									"key": "client_id",
+									"value": "{{postmanClientId}}",
+									"type": "text"
+								},
+								{
+									"key": "username",
+									"value": "ana.cliente@example.test",
+									"type": "text"
+								},
+								{
+									"key": "password",
+									"value": "{{anaPassword}}",
+									"type": "text"
+								},
+								{
+									"key": "scope",
+									"value": "openid",
+									"type": "text"
+								}
+							]
+						}
+					},
+					"response": [],
+					"id": "e53be0ec-7be2-576e-89c3-ca4a9284cfce"
+				},
+				{
+					"name": "Entrar — vera.vendedora (SELLER)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"const jwtClaims = (token) => {",
+									"    const cryptoJs = require('crypto-js');",
+									"    const part = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');",
+									"    const padded = part + '='.repeat((4 - (part.length % 4)) % 4);",
+									"    return JSON.parse(cryptoJs.enc.Base64.parse(padded).toString(cryptoJs.enc.Utf8));",
+									"};",
+									"pm.test('o Keycloak devolve o token (200)', () => pm.response.to.have.status(200));",
+									"const token = pm.response.code === 200 ? pm.response.json().access_token : '';",
+									"let claims = null;",
+									"pm.test(\"token de acesso de vera.vendedora@example.test com o papel SELLER\", () => {",
+									"    pm.expect(token, 'access_token').to.be.a('string').and.not.empty;",
+									"    claims = jwtClaims(token);",
+									"    pm.expect(claims.typ, 'token de acesso, não ID token').to.eql('Bearer');",
+									"    pm.expect(claims.azp, 'cliente do Postman').to.eql(pm.variables.get('postmanClientId'));",
+									"    pm.expect(claims.email).to.eql('vera.vendedora@example.test');",
+									"    pm.expect(claims.realm_access.roles).to.include('SELLER');",
+									"});",
+									"if (claims && claims.email === 'vera.vendedora@example.test') {",
+									"    pm.collectionVariables.set('tokenVera', token);",
+									"    if (pm.environment.name) pm.environment.set('tokenVera', token);",
+									"    pm.collectionVariables.set('veraSubject', claims.sub);",
+									"}"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": "{{keycloakUrl}}/realms/{{realm}}/protocol/openid-connect/token",
+						"description": "**vendedora — estoque, retirada, clientes mascarados.**\n\nEntra sozinho, sem janela: usuário e senha de desenvolvimento (`veraPassword`, a mesma do `infra/keycloak/realm.json`) no cliente `revenda-postman`, que só existe no Keycloak local. Na nuvem, o login é sempre pela tela do Cognito, com MFA para a equipe.\n\nDeve aparecer: `200` com o token de acesso, que vai para a variável `tokenVera`. O token vale 15 minutos; venceu (`401` nas outras requisições), mande esta de novo.",
+						"body": {
+							"mode": "urlencoded",
+							"urlencoded": [
+								{
+									"key": "grant_type",
+									"value": "password",
+									"type": "text"
+								},
+								{
+									"key": "client_id",
+									"value": "{{postmanClientId}}",
+									"type": "text"
+								},
+								{
+									"key": "username",
+									"value": "vera.vendedora@example.test",
+									"type": "text"
+								},
+								{
+									"key": "password",
+									"value": "{{veraPassword}}",
+									"type": "text"
+								},
+								{
+									"key": "scope",
+									"value": "openid",
+									"type": "text"
+								}
+							]
+						}
+					},
+					"response": [],
+					"id": "80749a16-dcab-5112-97e6-1101dd1c59d3"
+				}
+			]
+		},
+		{
+			"name": "2 · Cadastro da cliente",
+			"description": "A Ana se cadastra como compradora (na segunda vez a criação responde `409`, o que também passa) e lê o próprio cadastro, com CPF, e-mail e telefone mascarados.",
+			"item": [
+				{
+					"name": "Ana cria o próprio cadastro",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('cria (201) ou já existe de outra execução (409 CUSTOMER_ALREADY_REGISTERED)', () => {",
+									"    pm.expect(pm.response.code).to.be.oneOf([201, 409]);",
+									"    if (pm.response.code === 409) pm.expect(pm.response.json().code).to.eql('CUSTOMER_ALREADY_REGISTERED');",
+									"});",
+									"if (pm.response.code === 201) {",
+									"    pm.test('CPF mascarado (***.xxx.xxx-**)', () => {",
+									"        const cpf = pm.collectionVariables.get('anaCpf');",
+									"        pm.expect(pm.response.json().cpfMasked).to.eql('***.' + cpf.slice(3, 6) + '.' + cpf.slice(6, 9) + '-**');",
+									"    });",
+									"    pm.test('e-mail da conta e telefone mascarados; Location no próprio cadastro', () => {",
+									"        const customer = pm.response.json();",
+									"        pm.expect(customer.emailMasked).to.match(/^.\\*\\*\\*@example\\.test$/);",
+									"        pm.expect(customer.phoneMasked).to.match(/^\\(\\d{2}\\) \\*{4,5}-\\d{4}$/);",
+									"        pm.expect(customer).to.not.have.any.keys('cpf', 'email', 'phone');",
+									"        pm.expect(pm.response.headers.get('Location')).to.eql('/customers/me');",
+									"    });",
+									"}",
+									"pm.test(\"nenhum CPF em claro na resposta\", () => {",
+									"    const cpf = pm.collectionVariables.get('anaCpf');",
+									"    const formatted = cpf.replace(/(\\d{3})(\\d{3})(\\d{3})(\\d{2})/, '$1.$2.$3-$4');",
+									"    pm.expect(pm.response.text()).to.not.include(cpf).and.to.not.include(formatted);",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Idempotency-Key",
+								"value": "{{$guid}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": "{{customersUrl}}/customers",
+						"description": "`CUSTOMER` (ana.cliente). O corpo não tem e-mail: ele vem da conta, pelo token. Deve aparecer: `201` com `Location: /customers/me`, `cpfMasked` (`***.xxx.xxx-**`), `emailMasked` (`a***@example.test`) e `phoneMasked` (`(11) *****-0001`) — ou `409 CUSTOMER_ALREADY_REGISTERED` se já foi criado antes. Nenhum CPF, e-mail ou telefone em claro na resposta.",
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{tokenAna}}",
+									"type": "string"
+								}
+							]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"fullName\": \"Ana Ribeiro\",\n  \"cpf\": \"{{anaCpf}}\",\n  \"birthDate\": \"1990-05-17\",\n  \"phone\": \"+5511999990001\",\n  \"address\": {\n    \"zipCode\": \"01310000\",\n    \"street\": \"Rua das Amostras\",\n    \"number\": \"100\",\n    \"complement\": \"apto 12\",\n    \"district\": \"Centro\",\n    \"city\": \"São Paulo\",\n    \"state\": \"SP\"\n  }\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"response": [],
+					"id": "b0d77319-b926-51a5-b4aa-2d86917d90e2"
+				},
+				{
+					"name": "Ver o próprio cadastro",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"responde 200\", () => pm.response.to.have.status(200));",
+									"pm.test('CPF mascarado (***.xxx.xxx-**)', () => {",
+									"    const cpf = pm.collectionVariables.get('anaCpf');",
+									"    pm.expect(pm.response.json().cpfMasked).to.eql('***.' + cpf.slice(3, 6) + '.' + cpf.slice(6, 9) + '-**');",
+									"});",
+									"pm.test(\"nenhum CPF em claro na resposta\", () => {",
+									"    const cpf = pm.collectionVariables.get('anaCpf');",
+									"    const formatted = cpf.replace(/(\\d{3})(\\d{3})(\\d{3})(\\d{2})/, '$1.$2.$3-$4');",
+									"    pm.expect(pm.response.text()).to.not.include(cpf).and.to.not.include(formatted);",
+									"});",
+									"pm.test('e-mail vem da conta, mascarado', () => pm.expect(pm.response.json().emailMasked).to.eql('a***@example.test'));",
+									"if (pm.response.code === 200) pm.collectionVariables.set('customerId', pm.response.json().id);"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": "{{customersUrl}}/customers/me",
+						"description": "`CUSTOMER`. Deve aparecer: `200` com CPF, e-mail e telefone **mascarados** — também para a titular — e o e-mail da conta. O id vai para `customerId`.",
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{tokenAna}}",
+									"type": "string"
+								}
+							]
+						}
+					},
+					"response": [],
+					"id": "da949ba3-a7e4-5329-80e9-aab650fb1a65"
+				}
+			]
+		},
+		{
+			"name": "3 · Compra",
+			"description": "Do veículo cadastrado ao documento de transferência: reserva → código Pix → pagamento simulado (webhook assinado) → venda no estoque → retirada com o CPF conferido → baixa no estoque → documento.",
+			"item": [
+				{
+					"name": "Ana encerra compra que ficou aberta (se houver)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('lista as compras da Ana que esperam pagamento', () => pm.response.to.have.status(200));",
+									"const open = pm.response.code === 200 ? pm.response.json().items : [];",
+									"open.forEach((purchase) => pm.sendRequest({",
+									"    url: pm.variables.replaceIn('{{salesUrl}}') + '/purchases/' + purchase.id + '/cancellation',",
+									"    method: 'POST',",
+									"    header: { Authorization: 'Bearer ' + pm.variables.get('tokenAna') },",
+									"}, (error, response) => {",
+									"    pm.test('compra aberta de antes encerrada (' + purchase.id + ')', () => {",
+									"        pm.expect(error).to.eql(null);",
+									"        pm.expect(response.code).to.eql(200);",
+									"    });",
+									"}));"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": "{{salesUrl}}/purchases?status=AWAITING_PAYMENT",
+						"description": "Preparação: cada cliente tem no máximo uma compra em andamento. Se uma execução anterior parou no meio, a compra dela ainda espera o pagamento e bloquearia a reserva seguinte; aqui a Ana desiste dela (o veículo é liberado e a cobrança, cancelada). Deve aparecer: `200`; numa execução limpa, a lista vem vazia e nada é feito.",
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{tokenAna}}",
+									"type": "string"
+								}
+							]
+						}
+					},
+					"response": [],
+					"id": "5202afde-7277-5384-8fc7-90eae2ce963b"
+				},
+				{
+					"name": "Vendedora cadastra o veículo da compra",
+					"event": [
+						{
+							"listen": "prerequest",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"const pick = (chars) => chars[Math.floor(Math.random() * chars.length)];",
+									"const randomDigits = (size) => Array.from({ length: size }, () => pick('0123456789')).join('');",
+									"const renavamWithDigit = (base) => {",
+									"    const weights = [3, 2, 9, 8, 7, 6, 5, 4, 3, 2];",
+									"    const sum = base.split('').reduce((acc, digit, i) => acc + Number(digit) * weights[i], 0);",
+									"    return base + String(((sum * 10) % 11) % 10);",
+									"};",
+									"const randomPlate = () => {",
+									"    const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';",
+									"    return pick(letters) + pick(letters) + pick(letters) + randomDigits(1) + pick(letters + '0123456789') + randomDigits(2);",
+									"};",
+									"const randomVin = () => Array.from({ length: 17 }, () => pick('ABCDEFGHJKLMNPRSTUVWXYZ0123456789')).join('');",
+									"const randomPrice = (min, max) => Math.round((min + Math.random() * (max - min)) / 10000) * 10000;",
+									"const models = [",
+									"    ['Chevrolet', 'Onix', '1.0 Turbo LT', 'Prata'],",
+									"    ['Fiat', 'Argo', '1.3 Drive', 'Branco'],",
+									"    ['Volkswagen', 'Polo', '1.0 TSI Highline', 'Cinza'],",
+									"    ['Hyundai', 'HB20', '1.0 Platinum', 'Azul'],",
+									"    ['Toyota', 'Corolla', '2.0 XEi', 'Preto'],",
+									"    ['Renault', 'Kwid', '1.0 Zen', 'Vermelho'],",
+									"];",
+									"const [brand, model, trimName, color] = models[Math.floor(Math.random() * models.length)];",
+									"pm.collectionVariables.set('brand', brand);",
+									"pm.collectionVariables.set('model', model);",
+									"pm.collectionVariables.set('trimName', trimName);",
+									"pm.collectionVariables.set('color', color);",
+									"pm.collectionVariables.set('plate', randomPlate());",
+									"pm.collectionVariables.set('vin', randomVin());",
+									"pm.collectionVariables.set('renavam', renavamWithDigit(randomDigits(10)));",
+									"pm.collectionVariables.set('priceCents', String(randomPrice(4000000, 15000000)));"
+								]
+							}
+						},
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('responde 201 com o veículo AVAILABLE', () => {",
+									"    pm.response.to.have.status(201);",
+									"    pm.expect(pm.response.json().status).to.eql('AVAILABLE');",
+									"});",
+									"if (pm.response.code === 201) {",
+									"    pm.collectionVariables.set('vehicleId', pm.response.json().id);",
+									"    pm.collectionVariables.set('vehiclePriceCents', String(pm.response.json().priceCents));",
+									"}"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Idempotency-Key",
+								"value": "{{$guid}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": "{{vehiclesUrl}}/vehicles",
+						"description": "`SELLER` (vera.vendedora). Um veículo novo, com placa, chassi e RENAVAM gerados, só para este cenário. Deve aparecer: `201` com `status: AVAILABLE`; o id vai para `vehicleId`.",
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{tokenVera}}",
+									"type": "string"
+								}
+							]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"brand\": \"{{brand}}\",\n  \"model\": \"{{model}}\",\n  \"trimName\": \"{{trimName}}\",\n  \"manufactureYear\": 2023,\n  \"modelYear\": 2024,\n  \"color\": \"{{color}}\",\n  \"mileageKm\": 18500,\n  \"plate\": \"{{plate}}\",\n  \"vin\": \"{{vin}}\",\n  \"renavam\": \"{{renavam}}\",\n  \"priceCents\": {{priceCents}}\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"response": [],
+					"id": "c0885b20-a70f-5a93-ae3c-1336b3cfaba3"
+				},
+				{
+					"name": "Ana reserva e recebe o código de pagamento",
+					"event": [
+						{
+							"listen": "prerequest",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.collectionVariables.set('idempotencyKey', pm.variables.replaceIn('{{$guid}}'));"
+								]
+							}
+						},
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('responde 201 AWAITING_PAYMENT pelo preço do veículo', () => {",
+									"    pm.response.to.have.status(201);",
+									"    const purchase = pm.response.json();",
+									"    pm.expect(purchase.status).to.eql('AWAITING_PAYMENT');",
+									"    pm.expect(purchase.vehicleId).to.eql(pm.collectionVariables.get('vehicleId'));",
+									"    pm.expect(purchase.priceCents, 'o priceCents do corpo é ignorado').to.eql(Number(pm.collectionVariables.get('vehiclePriceCents')));",
+									"});",
+									"pm.test('código de pagamento com vencimento no futuro', () => {",
+									"    const payment = pm.response.json().payment;",
+									"    pm.expect(payment.status).to.eql('PENDING');",
+									"    pm.expect(payment.code).to.be.a('string').and.not.empty;",
+									"    pm.expect(Date.parse(payment.dueAt)).to.be.above(Date.now());",
+									"});",
+									"pm.test('linha do tempo: PENDING → RESERVED → AWAITING_PAYMENT, com o motivo de cada passo', () => {",
+									"    const timeline = pm.response.json().timeline;",
+									"    pm.expect(timeline.map((step) => step.status)).to.eql(['PENDING', 'RESERVED', 'AWAITING_PAYMENT']);",
+									"    pm.expect(timeline.map((step) => step.reason)).to.eql(['PURCHASE_REQUESTED', 'VEHICLE_RESERVED', 'CHARGE_ISSUED']);",
+									"});",
+									"pm.test('do cliente, só o id do cadastro', () => {",
+									"    const purchase = pm.response.json();",
+									"    pm.expect(purchase.customerId).to.eql(pm.collectionVariables.get('customerId'));",
+									"    pm.expect(purchase).to.not.have.any.keys('customerSubject', 'cpf', 'payer');",
+									"});",
+									"if (pm.response.code === 201) {",
+									"    const purchase = pm.response.json();",
+									"    pm.collectionVariables.set('purchaseId', purchase.id);",
+									"    pm.collectionVariables.set('completedPurchaseId', purchase.id);",
+									"    pm.collectionVariables.set('purchaseDueAt', purchase.payment.dueAt);",
+									"    pm.collectionVariables.set('purchasePaymentCode', purchase.payment.code);",
+									"}"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Idempotency-Key",
+								"value": "{{idempotencyKey}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": "{{salesUrl}}/purchases",
+						"description": "`CUSTOMER` (ana.cliente). Reservar e receber o código numa chamada só. O corpo manda `priceCents: 100` de propósito: valor vindo do cliente é ignorado e a compra sai pelo preço do veículo no momento da reserva. Deve aparecer: `201`, `status: AWAITING_PAYMENT`, `priceCents` igual ao do veículo, `payment` com o código Pix e o vencimento, e a linha do tempo `PENDING → RESERVED → AWAITING_PAYMENT`.",
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{tokenAna}}",
+									"type": "string"
+								}
+							]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"vehicleId\": \"{{vehicleId}}\",\n  \"priceCents\": 100\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"response": [],
+					"id": "43b5e045-a218-5e7f-9ffb-ab49d1b4bca7"
+				},
+				{
+					"name": "Veículo reservado some da vitrine",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"responde 404 NOT_FOUND\", () => {",
+									"    pm.response.to.have.status(404);",
+									"    pm.expect(pm.response.json().code).to.eql('NOT_FOUND');",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": "{{vehiclesUrl}}/vehicles/{{vehicleId}}",
+						"description": "Reservado não aparece como \"reservado\" — some. Deve aparecer: `404` para o visitante.",
+						"auth": {
+							"type": "noauth"
+						}
+					},
+					"response": [],
+					"id": "0ca5f834-defd-50c8-9e6e-47acaec9e1ef"
+				},
+				{
+					"name": "Gateway: achar a cobrança da compra",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"const found = pm.response.code === 200 ? pm.response.json() : null;",
+									"const charge = found;",
+									"pm.test('acha a cobrança da compra, com o valor e o código', () => {",
+									"    pm.response.to.have.status(200);",
+									"    pm.expect(charge, 'cobrança').to.be.an('object');",
+									"    pm.expect(charge.chargeId).to.be.a('string').and.not.empty;",
+									"    pm.expect(charge.amountCents).to.eql(Number(pm.collectionVariables.get('vehiclePriceCents')));",
+									"    pm.expect(charge.pixCode).to.eql(pm.collectionVariables.get('purchasePaymentCode'));",
+									"});",
+									"if (charge && charge.chargeId) pm.collectionVariables.set('chargeId', charge.chargeId);"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": "{{gatewayUrl}}/charges?referenceId={{purchaseId}}",
+						"description": "`GET /charges?referenceId=` do gateway simulado, com `X-Api-Key`. É o mesmo caminho que o `sales` usa na compensação quando perde a resposta do `POST /charges`. Deve aparecer: `200` com a cobrança da compra (`referenceId` = id da compra), o valor da compra em centavos e o mesmo código Pix; o `chargeId` vai para a variável `chargeId`.",
+						"auth": {
+							"type": "apikey",
+							"apikey": [
+								{
+									"key": "key",
+									"value": "X-Api-Key",
+									"type": "string"
+								},
+								{
+									"key": "value",
+									"value": "{{devGatewayApiKey}}",
+									"type": "string"
+								},
+								{
+									"key": "in",
+									"value": "header",
+									"type": "string"
+								}
+							]
+						}
+					},
+					"response": [],
+					"id": "f127d8ff-a1ea-54e1-9bff-0c3e17f18cac"
+				},
+				{
+					"name": "Gateway: simular o pagamento do Pix",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"o gateway aceita a simulação e dispara o webhook assinado\", () => pm.expect(pm.response.code).to.be.within(200, 299));"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": "{{gatewayUrl}}/charges/{{chargeId}}/simulate",
+						"description": "`POST /charges/{id}/simulate` com `outcome: PAID` — o \"cliente pagou\". O gateway dispara o webhook `CHARGE_PAID` assinado (HMAC) para o `sales`. Deve aparecer: `2xx`.",
+						"auth": {
+							"type": "apikey",
+							"apikey": [
+								{
+									"key": "key",
+									"value": "X-Api-Key",
+									"type": "string"
+								},
+								{
+									"key": "value",
+									"value": "{{devGatewayApiKey}}",
+									"type": "string"
+								},
+								{
+									"key": "in",
+									"value": "header",
+									"type": "string"
+								}
+							]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"outcome\": \"PAID\",\n  \"deliveries\": 1\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"response": [],
+					"id": "b354c363-5384-5144-80c2-e11015299db3"
+				},
+				{
+					"name": "Ana acompanha: compra paga",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"const keepPolling = (ready, maxAttempts) => {",
+									"    const key = 'poll:' + pm.info.requestId;",
+									"    const attempt = Number(pm.collectionVariables.get(key) || 0);",
+									"    if (!ready && attempt + 1 < maxAttempts) {",
+									"        pm.collectionVariables.set(key, String(attempt + 1));",
+									"        (pm.execution && pm.execution.setNextRequest ? pm.execution : postman).setNextRequest(pm.info.requestId);",
+									"        return true;",
+									"    }",
+									"    pm.collectionVariables.unset(key);",
+									"    return false;",
+									"};",
+									"const purchase = pm.response.code === 200 ? pm.response.json() : {};",
+									"const payment = purchase.payment || {};",
+									"const statuses = (purchase.timeline || []).map((step) => step.status);",
+									"if (!keepPolling(purchase.status === 'PAID', 20)) {",
+									"    pm.test('compra PAID, pagamento PAID', () => {",
+									"        pm.response.to.have.status(200);",
+									"        pm.expect(purchase.status).to.eql('PAID');",
+									"        pm.expect(payment.status).to.eql('PAID');",
+									"    });",
+									"}"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": "{{salesUrl}}/purchases/{{purchaseId}}",
+						"description": "`CUSTOMER`. O webhook confirma o pagamento — nunca uma chamada do cliente. Deve aparecer: `status: PAID` e `payment.status: PAID`.",
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{tokenAna}}",
+									"type": "string"
+								}
+							]
+						}
+					},
+					"response": [],
+					"id": "512274f2-d1fa-5b29-a464-8224bd7da159"
+				},
+				{
+					"name": "Vendedora vê o veículo vendido",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"const keepPolling = (ready, maxAttempts) => {",
+									"    const key = 'poll:' + pm.info.requestId;",
+									"    const attempt = Number(pm.collectionVariables.get(key) || 0);",
+									"    if (!ready && attempt + 1 < maxAttempts) {",
+									"        pm.collectionVariables.set(key, String(attempt + 1));",
+									"        (pm.execution && pm.execution.setNextRequest ? pm.execution : postman).setNextRequest(pm.info.requestId);",
+									"        return true;",
+									"    }",
+									"    pm.collectionVariables.unset(key);",
+									"    return false;",
+									"};",
+									"const vehicle = pm.response.code === 200 ? pm.response.json() : {};",
+									"if (!keepPolling(vehicle.status === 'SOLD', 20)) {",
+									"    pm.test('veículo SOLD', () => {",
+									"        pm.response.to.have.status(200);",
+									"        pm.expect(vehicle.status).to.eql('SOLD');",
+									"    });",
+									"}"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": "{{vehiclesUrl}}/vehicles/{{vehicleId}}",
+						"description": "O `MarkVehicleSold` sai pelo outbox e pela fila FIFO (grupo = veículo). Deve aparecer: `status: SOLD`.",
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{tokenVera}}",
+									"type": "string"
+								}
+							]
+						}
+					},
+					"response": [],
+					"id": "8d458b8e-66dd-5065-9496-502aed402111"
+				},
+				{
+					"name": "Vendedora confirma a retirada",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('responde 200 COMPLETED', () => {",
+									"    pm.response.to.have.status(200);",
+									"    pm.expect(pm.response.json().status).to.eql('COMPLETED');",
+									"});",
+									"pm.test(\"nenhum CPF em claro na resposta\", () => {",
+									"    const cpf = pm.collectionVariables.get('anaCpf');",
+									"    const formatted = cpf.replace(/(\\d{3})(\\d{3})(\\d{3})(\\d{2})/, '$1.$2.$3-$4');",
+									"    pm.expect(pm.response.text()).to.not.include(cpf).and.to.not.include(formatted);",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": "{{salesUrl}}/purchases/{{purchaseId}}/pickup",
+						"description": "`SELLER` (vera.vendedora), com o CPF da Ana. É o pivô da saga: daqui não há volta. Deve aparecer: `200` com `status: COMPLETED`; a baixa no estoque e o documento saem em seguida.",
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{tokenVera}}",
+									"type": "string"
+								}
+							]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"cpf\": \"{{anaCpf}}\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"response": [],
+					"id": "e195141a-5c74-525b-a272-5d8296876b50"
+				},
+				{
+					"name": "Baixa no estoque: veículo entregue",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"const keepPolling = (ready, maxAttempts) => {",
+									"    const key = 'poll:' + pm.info.requestId;",
+									"    const attempt = Number(pm.collectionVariables.get(key) || 0);",
+									"    if (!ready && attempt + 1 < maxAttempts) {",
+									"        pm.collectionVariables.set(key, String(attempt + 1));",
+									"        (pm.execution && pm.execution.setNextRequest ? pm.execution : postman).setNextRequest(pm.info.requestId);",
+									"        return true;",
+									"    }",
+									"    pm.collectionVariables.unset(key);",
+									"    return false;",
+									"};",
+									"const vehicle = pm.response.code === 200 ? pm.response.json() : {};",
+									"if (!keepPolling(vehicle.status === 'DELIVERED', 20)) {",
+									"    pm.test('veículo DELIVERED', () => {",
+									"        pm.response.to.have.status(200);",
+									"        pm.expect(vehicle.status).to.eql('DELIVERED');",
+									"    });",
+									"}"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": "{{vehiclesUrl}}/vehicles/{{vehicleId}}",
+						"description": "O `DeliverVehicle` sai pela fila. Deve aparecer: `status: DELIVERED` — o carro saiu da revenda.",
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{tokenVera}}",
+									"type": "string"
+								}
+							]
+						}
+					},
+					"response": [],
+					"id": "e37d7e2c-5d59-586d-bfa9-4dd7e71d97cf"
+				},
+				{
+					"name": "Vendidos mostra o veículo pelo preço de venda",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"const sortedBysoldPriceCents = (items) => items.every((item, i) => i === 0",
+									"    || items[i - 1].soldPriceCents < item.soldPriceCents",
+									"    || (items[i - 1].soldPriceCents === item.soldPriceCents && items[i - 1].id <= item.id));",
+									"pm.test('ordem crescente de preço de venda', () => pm.expect(sortedBysoldPriceCents(pm.response.json().items)).to.be.true);",
+									"const page = pm.response.json();",
+									"if (page.totalItems <= page.size) {",
+									"    pm.test('o veículo da compra está na lista', () => {",
+									"        const vehicle = page.items.find((item) => item.id === pm.collectionVariables.get('vehicleId'));",
+									"        pm.expect(vehicle, 'veículo').to.be.an('object');",
+									"        pm.expect(vehicle.status).to.eql('DELIVERED');",
+									"        pm.expect(vehicle.soldPriceCents).to.eql(Number(pm.collectionVariables.get('vehiclePriceCents')));",
+									"    });",
+									"}"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": "{{vehiclesUrl}}/vehicles/sold?page=0&size=100",
+						"description": "`SELLER`. Deve aparecer: o veículo `DELIVERED` com `soldPriceCents` igual ao preço da compra, em ordem crescente de preço de venda.",
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{tokenVera}}",
+									"type": "string"
+								}
+							]
+						}
+					},
+					"response": [],
+					"id": "87505dc0-ee7a-583d-825c-8c433aba2cf4"
+				},
+				{
+					"name": "Ana baixa o documento de transferência",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"const keepPolling = (ready, maxAttempts) => {",
+									"    const key = 'poll:' + pm.info.requestId;",
+									"    const attempt = Number(pm.collectionVariables.get(key) || 0);",
+									"    if (!ready && attempt + 1 < maxAttempts) {",
+									"        pm.collectionVariables.set(key, String(attempt + 1));",
+									"        (pm.execution && pm.execution.setNextRequest ? pm.execution : postman).setNextRequest(pm.info.requestId);",
+									"        return true;",
+									"    }",
+									"    pm.collectionVariables.unset(key);",
+									"    return false;",
+									"};",
+									"if (!keepPolling(pm.response.code === 200, 20)) {",
+									"    pm.test('URL temporária de até 5 minutos', () => {",
+									"        pm.response.to.have.status(200);",
+									"        const document = pm.response.json();",
+									"        pm.expect(document.url).to.match(/^https?:\\/\\//);",
+									"        const ttl = Date.parse(document.expiresAt) - Date.now();",
+									"        pm.expect(ttl).to.be.above(0).and.at.most(5 * 60 * 1000 + 30000);",
+									"    });",
+									"    pm.test(\"nenhum CPF na URL do documento\", () => {",
+									"        const cpf = pm.collectionVariables.get('anaCpf');",
+									"        const formatted = cpf.replace(/(\\d{3})(\\d{3})(\\d{3})(\\d{2})/, '$1.$2.$3-$4');",
+									"        pm.expect(pm.response.text()).to.not.include(cpf).and.to.not.include(formatted);",
+									"    });",
+									"}"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": "{{salesUrl}}/purchases/{{purchaseId}}/document",
+						"description": "Dono da compra. O documento (PDF com os campos do ATPV-e, no S3 com SSE-KMS) é gerado depois da retirada; enquanto não sai, `409 DOCUMENT_NOT_READY`, e a consulta se repete por até 20 s. Deve aparecer: `200` com `url` pré-assinada e `expiresAt` em até 5 minutos, `Cache-Control: no-store`. Nenhum dado pessoal na URL. Abra a `url` no navegador para ver o PDF (vale 5 minutos). Cada link entregue grava `PURCHASE_DOCUMENT_DOWNLOADED`.",
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{tokenAna}}",
+									"type": "string"
+								}
+							]
+						}
+					},
+					"response": [],
+					"id": "4a15f2e0-e969-5ea5-82fa-8b45d7bc14c0"
+				},
+				{
+					"name": "Vendedora também baixa o documento",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"responde 200\", () => pm.response.to.have.status(200));"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": "{{salesUrl}}/purchases/{{purchaseId}}/document",
+						"description": "`SELLER`. Deve aparecer: `200` com a URL (o acesso é auditado).",
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{tokenVera}}",
+									"type": "string"
+								}
+							]
+						}
+					},
+					"response": [],
+					"id": "a4f145f7-89b2-57a8-b002-6acf884c4b8f"
+				},
+				{
+					"name": "Linha do tempo completa",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"const keepPolling = (ready, maxAttempts) => {",
+									"    const key = 'poll:' + pm.info.requestId;",
+									"    const attempt = Number(pm.collectionVariables.get(key) || 0);",
+									"    if (!ready && attempt + 1 < maxAttempts) {",
+									"        pm.collectionVariables.set(key, String(attempt + 1));",
+									"        (pm.execution && pm.execution.setNextRequest ? pm.execution : postman).setNextRequest(pm.info.requestId);",
+									"        return true;",
+									"    }",
+									"    pm.collectionVariables.unset(key);",
+									"    return false;",
+									"};",
+									"const purchase = pm.response.code === 200 ? pm.response.json() : {};",
+									"const payment = purchase.payment || {};",
+									"const statuses = (purchase.timeline || []).map((step) => step.status);",
+									"if (!keepPolling(purchase.status === 'COMPLETED', 1)) {",
+									"    pm.test('compra COMPLETED', () => {",
+									"        pm.response.to.have.status(200);",
+									"        pm.expect(purchase.status).to.eql('COMPLETED');",
+									"    });",
+									"    pm.test(\"linha do tempo: PENDING → RESERVED → AWAITING_PAYMENT → PAID → COMPLETED → COMPLETED\", () => pm.expect(statuses).to.eql([\"PENDING\",\"RESERVED\",\"AWAITING_PAYMENT\",\"PAID\",\"COMPLETED\",\"COMPLETED\"]));",
+									"    pm.test('os dois últimos passos: retirada e documento emitido', () => pm.expect(purchase.timeline.slice(-2).map((step) => step.reason)).to.eql(['PICKUP_CONFIRMED', 'DOCUMENT_ISSUED']));",
+									"}"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": "{{salesUrl}}/purchases/{{purchaseId}}",
+						"description": "`CUSTOMER`. Deve aparecer: `COMPLETED` e a linha do tempo inteira, `PENDING → RESERVED → AWAITING_PAYMENT → PAID → COMPLETED → COMPLETED` — o último é o documento emitido (`DOCUMENT_ISSUED`); cada passo é uma linha de `purchase_transition`.",
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{tokenAna}}",
+									"type": "string"
+								}
+							]
+						}
+					},
+					"response": [],
+					"id": "488ec08f-07e8-543a-9d93-9fb0f8ffb363"
+				},
+				{
+					"name": "Ana lista as próprias compras",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('página no formato { items, page, size, totalItems }', () => {",
+									"    const page = pm.response.json();",
+									"    pm.expect(page.items).to.be.an('array');",
+									"    pm.expect(page.page).to.be.a('number');",
+									"    pm.expect(page.size).to.be.a('number');",
+									"    pm.expect(page.totalItems).to.be.a('number');",
+									"});",
+									"pm.test('a compra concluída está na lista', () => {",
+									"    pm.expect(pm.response.json().items.map((purchase) => purchase.id)).to.include(pm.collectionVariables.get('purchaseId'));",
+									"});",
+									"pm.test('a listagem não traz a linha do tempo', () => pm.response.json().items.forEach((purchase) => pm.expect(purchase).to.not.have.property('timeline')));"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": "{{salesUrl}}/purchases?page=0&size=20",
+						"description": "`CUSTOMER` vê só as próprias compras, a mais recente primeiro. Deve aparecer: a página com a compra concluída.",
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{tokenAna}}",
+									"type": "string"
+								}
+							]
+						}
+					},
+					"response": [],
+					"id": "e7c526c9-536c-5f9a-a86c-56dfbe194f26"
+				}
+			]
+		}
+	],
+	"auth": {
+		"type": "noauth"
+	},
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					"if (Number(pm.collectionVariables.get('poll:' + pm.info.requestId) || 0) > 0 && pm.info.requestName.indexOf('429') !== 0) {",
+					"    setTimeout(() => {}, 1000);",
+					"}",
+					"",
+					"const limits = { 'POST /purchases': 10, 'POST /customers': 5 };",
+					"const route = pm.request.method + ' ' + pm.request.url.getPath();",
+					"if (limits[route]) {",
+					"    const windowMs = 61000;",
+					"    const now = Date.now();",
+					"    const logKey = 'rateLimit:' + route;",
+					"    const recent = JSON.parse(pm.collectionVariables.get(logKey) || '[]').filter((at) => now - at < windowMs);",
+					"    let sendAt = now;",
+					"    if (pm.info.requestName.indexOf('429') !== 0 && recent.length >= limits[route]) {",
+					"        sendAt = recent[recent.length - limits[route]] + windowMs;",
+					"    }",
+					"    recent.push(sendAt);",
+					"    pm.collectionVariables.set(logKey, JSON.stringify(recent));",
+					"    if (sendAt > now) {",
+					"        console.log('Aguardando ' + Math.ceil((sendAt - now) / 1000) + ' s pelo limite de taxa de ' + route + '.');",
+					"        setTimeout(() => {}, sendAt - now);",
+					"    }",
+					"}",
+					"",
+					"if (pm.request.auth && pm.request.auth.type === 'bearer') {",
+					"    const token = pm.variables.replaceIn(String(pm.request.auth.parameters().get('token') || ''));",
+					"    if (!token) console.warn('Sem token em \"' + pm.info.requestName + '\": entre com a pessoa na pasta 00 ou peça o token de serviço na pasta 01.');",
+					"}"
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					"const raw = pm.request.url.toString();",
+					"const isFrom = (variable) => raw.indexOf('{{' + variable + '}}') === 0 || raw.indexOf(pm.variables.get(variable)) === 0;",
+					"const management = ['vehiclesManagementUrl', 'customersManagementUrl', 'salesManagementUrl', 'gatewayManagementUrl'].some(isFrom);",
+					"if (!isFrom('keycloakUrl') && !management) {",
+					"    const requestId = pm.response.headers.get('X-Request-Id');",
+					"    pm.test('[contrato] X-Request-Id na resposta', () => pm.expect(requestId, 'X-Request-Id').to.be.a('string').and.not.empty);",
+					"    const type = pm.response.headers.get('Content-Type') || '';",
+					"    const body = type.indexOf('json') >= 0 && pm.response.text() ? pm.response.json() : null;",
+					"    if (pm.response.code >= 400 && body) {",
+					"        pm.test('[contrato] erro { code, message, requestId, fields } com o requestId do cabeçalho', () => {",
+					"            pm.expect(body.code, 'code').to.be.a('string').and.match(/^[A-Z_]+$/);",
+					"            pm.expect(body.message, 'message').to.be.a('string').and.not.empty;",
+					"            pm.expect(body.requestId, 'requestId').to.eql(requestId);",
+					"            pm.expect(body.fields, 'fields').to.be.an('array');",
+					"            pm.expect(body, 'sem detalhe interno').to.not.have.any.keys('trace', 'exception', 'stackTrace', 'error', 'path');",
+					"        });",
+					"    }",
+					"    if (body) {",
+					"        const notCents = [];",
+					"        const walk = (node, path) => {",
+					"            if (Array.isArray(node)) {",
+					"                node.forEach((item, i) => walk(item, path + '[' + i + ']'));",
+					"            } else if (node && typeof node === 'object') {",
+					"                Object.keys(node).forEach((key) => {",
+					"                    if (/Cents$/.test(key) && node[key] !== null && !Number.isInteger(node[key])) notCents.push(path + '.' + key);",
+					"                    walk(node[key], path + '.' + key);",
+					"                });",
+					"            }",
+					"        };",
+					"        walk(body, '$');",
+					"        pm.test('[contrato] dinheiro em centavos inteiros (*Cents)', () => pm.expect(notCents).to.be.empty);",
+					"    }",
+					"    if (pm.response.code === 401 && body && body.code === 'UNAUTHENTICATED' && !isFrom('gatewayUrl')) {",
+					"        pm.test('[contrato] 401 com WWW-Authenticate: Bearer', () => pm.expect(pm.response.headers.get('WWW-Authenticate')).to.match(/^Bearer/));",
+					"    }",
+					"}"
+				]
+			}
+		}
+	],
+	"variable": [
+		{
+			"key": "vehiclesUrl",
+			"value": "http://localhost:8081",
+			"type": "string",
+			"description": "estoque (vehicles-service)"
+		},
+		{
+			"key": "customersUrl",
+			"value": "http://localhost:8082",
+			"type": "string",
+			"description": "cadastro (customers-service)"
+		},
+		{
+			"key": "salesUrl",
+			"value": "http://localhost:8083",
+			"type": "string",
+			"description": "compras (sales-service)"
+		},
+		{
+			"key": "gatewayUrl",
+			"value": "http://localhost:8084",
+			"type": "string",
+			"description": "gateway de pagamento simulado"
+		},
+		{
+			"key": "keycloakUrl",
+			"value": "http://localhost:8180",
+			"type": "string",
+			"description": "Keycloak local"
+		},
+		{
+			"key": "realm",
+			"value": "revenda",
+			"type": "string",
+			"description": "realm do Keycloak"
+		},
+		{
+			"key": "postmanClientId",
+			"value": "revenda-postman",
+			"type": "string",
+			"description": "cliente do Keycloak local para o login por usuário e senha"
+		},
+		{
+			"key": "anaPassword",
+			"value": "dev-only-Ana-2026",
+			"type": "string",
+			"description": "senha de desenvolvimento da ana.cliente (a do infra/keycloak/realm.json)"
+		},
+		{
+			"key": "veraPassword",
+			"value": "dev-only-Vera-2026",
+			"type": "string",
+			"description": "senha de desenvolvimento da vera.vendedora (a do infra/keycloak/realm.json)"
+		},
+		{
+			"key": "devGatewayApiKey",
+			"value": "dev-only-payment-gateway-api-key",
+			"type": "string",
+			"description": "chave de desenvolvimento do gateway simulado (a do infra/.env.example); nome próprio para o ambiente revenda-local, se estiver selecionado, não a esconder"
+		},
+		{
+			"key": "tokenAna",
+			"value": "",
+			"type": "string",
+			"description": "token da ana.cliente, preenchido pela pasta 1"
+		},
+		{
+			"key": "tokenVera",
+			"value": "",
+			"type": "string",
+			"description": "token da vera.vendedora, preenchido pela pasta 1"
+		},
+		{
+			"key": "anaCpf",
+			"value": "39053344705",
+			"type": "string",
+			"description": "CPF sintético (dígito válido) do cadastro da ana.cliente"
+		},
+		{
+			"key": "vehicleId",
+			"value": "",
+			"type": "string",
+			"description": "veículo do cenário atual (pastas 02, 05, 06, 10)"
+		},
+		{
+			"key": "vehiclePriceCents",
+			"value": "",
+			"type": "string",
+			"description": "preço do veículo do cenário, em centavos"
+		},
+		{
+			"key": "customerId",
+			"value": "",
+			"type": "string",
+			"description": "cadastro da ana.cliente (pasta 04)"
+		},
+		{
+			"key": "purchaseId",
+			"value": "",
+			"type": "string",
+			"description": "compra do cenário atual"
+		},
+		{
+			"key": "completedPurchaseId",
+			"value": "",
+			"type": "string",
+			"description": "compra concluída do fluxo feliz (pasta 05)"
+		},
+		{
+			"key": "chargeId",
+			"value": "",
+			"type": "string",
+			"description": "cobrança da compra do cenário atual, no gateway"
+		},
+		{
+			"key": "anaSubject",
+			"value": "",
+			"type": "string",
+			"description": "sub da ana.cliente no Keycloak (pasta 00)"
+		}
+	]
+}
